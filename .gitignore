@@ -1,0 +1,24 @@
+# Build directories
+build/
+linux_build/
+win_build/
+
+# Third-party / vendored dependencies (must be provided by the environment)
+third_party/
+external/
+
+# Editor / IDE
+.vs/
+.vscode/
+*.user
+
+# Build artifacts
+bin/
+*.o
+*.obj
+*.so
+*.so.*
+*.dll
+*.lib
+*.a
+*.exe

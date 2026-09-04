@@ -1,0 +1,21 @@
+Simou3 Camera SDK
+Copyright (c) 2026 Humanplus Intelligent Robotics Technology Co.,Ltd. All rights reserved.
+
+This product is licensed under the Apache License, Version 2.0 (the
+"License"); you may not use this product except in compliance with the
+License. You may obtain a copy of the License at:
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+-------------------------------------------------------------------------------
+Third-party components
+-------------------------------------------------------------------------------
+
+The SDK library itself (Simou3CameraSDK) has no third-party runtime
+dependencies.
+
+The example program (Sample) optionally uses OpenCV
+(https://opencv.org/) for image display. OpenCV is licensed under the
+Apache License, Version 2.0 (OpenCV 4.5.0 and later). OpenCV is NOT bundled
+with this SDK; it must be provided by the build environment. If OpenCV is
+not found, the sample is skipped and the SDK library still builds.
