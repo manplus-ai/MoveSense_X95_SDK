@@ -1,6 +1,6 @@
 # MoveSense X95 SDK
 
-> **状态:0.1.0 — 早期版本。** API **尚不稳定**,1.0 之前预计会有破坏性变更。
+> **状态:0.1.1 — 早期版本。** API **尚不稳定**,1.0 之前预计会有破坏性变更。
 > 后续版本计划:引入 `simou3` 命名空间、统一错误码等并收窄对外公开的头文件接口面。
 
 跨平台(Linux / Windows)C++ SDK,用于 MoveSense X95 系列主/被动式双目深度相机。
@@ -51,7 +51,7 @@ sudo make install          # 默认装到 /usr/local
 
 ```
 include/movesense/*.h                         公开头文件
-lib/libMoveSense_X95_SDK.so(.0.1)(.0.1.0)     动态库
+lib/libMoveSense_X95_SDK.so(.0.1)(.0.1.1)     动态库
 lib/cmake/MoveSense_X95_SDK/*.cmake           package config(供 find_package)
 ```
 
