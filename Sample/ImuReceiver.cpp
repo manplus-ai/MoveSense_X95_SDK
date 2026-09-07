@@ -7,6 +7,8 @@
 #include <cstring>
 #include <vector>
 
+using namespace movesense;
+
 namespace {
 const int IMU_SAMPLE_BYTES = 24;
 }
@@ -58,7 +60,7 @@ void ImuReceiver::ToggleRecord()
     fflush(stdout);
 }
 
-void ImuReceiver::ParseAndWrite(const IMU& s)
+void ImuReceiver::ParseAndWrite(const Imu& s)
 {
     if (m_recording.load() && m_csv) {
         fprintf(m_csv, "%llu,%d,%d,%d,%d,%d,%d\n", (unsigned long long)s.timestampUs, s.ax, s.ay, s.az, s.gx, s.gy, s.gz);
@@ -70,10 +72,10 @@ void ImuReceiver::Loop()
     int cnt = 0;
     std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
     while (m_running.load()) {
-        std::vector<IMU> samples;
+        std::vector<Imu> samples;
         int n = m_session->GetImu(samples);
         if (n > 0) {
-            for (const IMU& s : samples) {
+            for (const Imu& s : samples) {
                 ParseAndWrite(s);
             }
             cnt += n;

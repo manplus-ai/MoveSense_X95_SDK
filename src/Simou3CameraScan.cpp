@@ -9,6 +9,8 @@
 
 #include <set>
 
+namespace movesense {
+
 Simou3CameraScan::Simou3CameraScan(int port, int timeoutMS)
 {
     mPort = port;
@@ -312,3 +314,5 @@ std::vector<CameraInfo> Simou3CameraScan::scanBroadcast(std::string broadcastIP)
     closeSocket();
     return cameras;
 }
+
+} // namespace movesense

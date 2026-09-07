@@ -7,6 +7,8 @@
 #include "Simou3Log.h"
 #include "movesense/transfer_mode_def.h"
 
+namespace movesense {
+
 struct Simou3ChunkHdr {
     uint32_t fc = 0, chunkStart = 0, chunkEnd = 0, totalLen = 0;
     uint8_t label = 0, flags = 0, status = 0, fmt = 0;
@@ -176,7 +178,7 @@ void Simou3CameraTransfer::stashIMU(std::vector<uint8_t>&& buf)
         return;
     }
     std::lock_guard<std::mutex> lk(mImuMtx);
-    IMU s {};
+    Imu s {};
     if (static_cast<int>(buf.size()) >= IMU_SAMPLE_BYTES) {
         const uint8_t* p = buf.data();
         std::memcpy(&s.ax, p, 14);
@@ -199,7 +201,7 @@ void Simou3CameraTransfer::setPtsOffset(int64_t offsetUs)
     mPtsOffset.store(offsetUs, std::memory_order_relaxed);
 }
 
-int Simou3CameraTransfer::getIMU(std::vector<IMU>& out, int num)
+int Simou3CameraTransfer::getIMU(std::vector<Imu>& out, int num)
 {
     if (!mRunning.load()) {
         return -1;
@@ -408,3 +410,5 @@ void Simou3CameraTransfer::recvLoop()
     }
     mRunning.store(false);
 }
+
+} // namespace movesense

@@ -6,6 +6,8 @@
 #include <cstdio>
 #include <iostream>
 
+using namespace movesense;
+
 namespace {
 const int DEFAULT_FPS = 15;
 const int DEFAULT_EXPO_US = 5000;

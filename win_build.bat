@@ -7,6 +7,7 @@ REM  Output layout:
 REM     win_build\vs2017\x64\Release   win_build\vs2017\x64\Debug
 REM     win_build\vs2017\x32\Release   win_build\vs2017\x32\Debug
 REM     win_build\vs2019\x64\...        win_build\vs2019\x32\...
+REM  Sample is built too when OpenCV is found; otherwise it is skipped.
 REM  If NEITHER VS2017 nor VS2019 is present -> error out.
 REM  NOTE: comments/echo are ASCII on purpose (UTF-8 breaks cmd .bat).
 REM ============================================================
@@ -16,6 +17,7 @@ cd /d "%~dp0"
 echo ============================================
 echo   Simou3Camera SDK build (VS2017/VS2019 x64/x32 Debug/Release)
 echo   Output: win_build\vsXXXX\{x64,x32}\{Release,Debug}
+echo   Sample also built when OpenCV is available
 echo ============================================
 
 REM ---- locate cmake: PATH first, then common install spots ----
@@ -70,7 +72,7 @@ set "AARCH=%~4"
 set "BDIR=win_build\%TAG%\%ADIR%"
 
 REM configure (quiet): failure here means this VS/arch is not installed -> skip
-"%CMAKE%" -S . -B "%BDIR%" -G "%GEN%" -A %AARCH% >nul 2>nul
+"%CMAKE%" -S . -B "%BDIR%" -G "%GEN%" -A %AARCH% -DMOVESENSE_BUILD_SAMPLE=ON >nul 2>nul
 if errorlevel 1 (
     echo   [skip] %TAG% %ADIR%  ^(generator not available^)
     if exist "%BDIR%" rd /s /q "%BDIR%"
@@ -82,6 +84,16 @@ echo   [build] %TAG% %ADIR%  Release + Debug
 if errorlevel 1 ( echo   [ERROR] %TAG% %ADIR% Release FAILED & goto :eof )
 "%CMAKE%" --build "%BDIR%" --config Debug --target MoveSense_X95_SDK
 if errorlevel 1 ( echo   [ERROR] %TAG% %ADIR% Debug FAILED & goto :eof )
+
+REM Sample is only generated when OpenCV was found (add_subdirectory(Sample))
+if exist "%BDIR%\Sample" (
+    "%CMAKE%" --build "%BDIR%" --config Release --target Sample
+    if errorlevel 1 ( echo   [ERROR] %TAG% %ADIR% Sample Release FAILED & goto :eof )
+    "%CMAKE%" --build "%BDIR%" --config Debug --target Sample
+    if errorlevel 1 ( echo   [ERROR] %TAG% %ADIR% Sample Debug FAILED & goto :eof )
+) else (
+    echo   [note] %TAG% %ADIR%: OpenCV not found -^> Sample skipped; SDK library built OK
+)
 
 set BUILT=1
 goto :eof
