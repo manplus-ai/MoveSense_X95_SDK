@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Humanplus Intelligent Robotics Technology Co.,Ltd. All rights reserved.
 
 #pragma once
-#include "Simou3Types.h"
+#include "movesense/Simou3Types.h"
 
 #include <chrono>
 #include <iostream>

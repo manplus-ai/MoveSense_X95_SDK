@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 Humanplus Intelligent Robotics Technology Co.,Ltd. All rights reserved.
 
-#include "Simou3CameraTransfer.h"
+#include "movesense/Simou3CameraTransfer.h"
 
 #include "Simou3Internal.h"
 #include "Simou3Log.h"
-#include "transfer_mode_def.h"
+#include "movesense/transfer_mode_def.h"
 
 struct Simou3ChunkHdr {
     uint32_t fc = 0, chunkStart = 0, chunkEnd = 0, totalLen = 0;

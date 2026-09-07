@@ -6,7 +6,7 @@
 #include "FrameReceiver.h"
 #include "ImuReceiver.h"
 #include "ModeCatalog.h"
-#include "Simou3Camera.h"
+#include "movesense/Simou3Camera.h"
 
 class SampleApp {
 public:

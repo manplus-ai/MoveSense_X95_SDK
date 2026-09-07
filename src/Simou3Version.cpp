@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 Humanplus Intelligent Robotics Technology Co.,Ltd. All rights reserved.
 
-#include "Simou3Camera.h"
+#include "movesense/Simou3Camera.h"
 
 #ifndef SIMOU3_VERSION_MAJOR
 #define SIMOU3_VERSION_MAJOR 0

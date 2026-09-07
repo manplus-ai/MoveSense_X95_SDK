@@ -1,0 +1,8 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(Threads)
+
+include("${CMAKE_CURRENT_LIST_DIR}/MoveSense_X95_SDKTargets.cmake")
+
+check_required_components(MoveSense_X95_SDK)
