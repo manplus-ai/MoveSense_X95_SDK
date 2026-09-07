@@ -121,7 +121,7 @@ struct NetworkInterface {
 	NetworkInterface() : name(""), ip(""), netmask(""), broadcast("") {}
 };
 
-enum class PFormat : uint8_t { PF_Y8 = 0, PF_YUV420 = 1, PF_DEPTH16 = 2 };
+enum class PFormat : uint8_t { PF_Y8 = 0, PF_NV21 = 1, PF_DEPTH16 = 2 };
 
 #pragma pack(push, 1)
 struct DetectionBox {
