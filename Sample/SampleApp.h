@@ -8,6 +8,8 @@
 #include "ModeCatalog.h"
 #include "movesense/Simou3Camera.h"
 
+using namespace movesense;
+
 class SampleApp {
 public:
     int Run(int argc, char** argv);

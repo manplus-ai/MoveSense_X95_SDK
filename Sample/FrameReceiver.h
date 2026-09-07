@@ -8,6 +8,8 @@
 #include <atomic>
 #include <mutex>
 #include <thread>
+using namespace movesense;
+
 class FrameReceiver {
 public:
     ~FrameReceiver();

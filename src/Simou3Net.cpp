@@ -8,6 +8,8 @@
 
 #include <cstring>
 
+namespace movesense {
+
 Simou3Net::~Simou3Net()
 {
     closeSock();
@@ -309,3 +311,5 @@ std::vector<NetworkInterface> Simou3Net::enumInterfaces()
 
     return interfaces;
 }
+
+} // namespace movesense

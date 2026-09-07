@@ -1,9 +1,7 @@
 # MoveSense X95 SDK
 
-> **Status: 0.1.1 — early release.** The API is **not** stable yet and
-> breaking changes are expected before 1.0. Planned for upcoming releases:
-> a `simou3` namespace, unified error codes and more, plus a smaller public
-> header surface.
+> **Status: 0.2.0 — early release.** The API is **not** stable yet and
+> breaking changes are expected before 1.0.
 
 Cross-platform (Linux / Windows) C++ SDK for the MoveSense X95-series
 active / passive stereo depth camera. The active variant pairs two IR
@@ -59,7 +57,7 @@ Installed layout (relative to `CMAKE_INSTALL_PREFIX`, default `/usr/local`):
 
 ```
 include/movesense/*.h                         public headers
-lib/libMoveSense_X95_SDK.so(.0.1)(.0.1.1)     shared library
+lib/libMoveSense_X95_SDK.so(.0.2)(.0.2.0)     shared library
 lib/cmake/MoveSense_X95_SDK/*.cmake           package config (for find_package)
 ```
 

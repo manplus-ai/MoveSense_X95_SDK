@@ -18,6 +18,8 @@
 #include <windows.h>
 #endif
 
+using namespace movesense;
+
 namespace fs = std::filesystem;
 
 namespace {

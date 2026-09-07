@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+using namespace movesense;
+
 class CameraSession {
 public:
     ~CameraSession();
@@ -21,7 +23,7 @@ public:
         return m_cam && m_cam->getFrame(out, timeoutMs);
     }
 
-    int GetImu(std::vector<IMU>& out)
+    int GetImu(std::vector<Imu>& out)
     {
         return m_cam ? m_cam->getIMU(out) : 0;
     }

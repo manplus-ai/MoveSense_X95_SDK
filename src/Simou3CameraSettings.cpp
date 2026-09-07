@@ -9,6 +9,88 @@
 
 #include <fstream>
 
+#define CMD_TYPE_GET_FIRMWARE_VERSION 0x0006
+#define CMD_TYPE_GET_CAMERA_TYPE 0x0019
+
+#define CMD_TYPE_SET_IP 0x0009
+#define CMD_TYPE_GET_IP 0x000A
+
+#define CMD_TYPE_SET_MAC 0x000B
+#define CMD_TYPE_GET_MAC 0x000C
+
+#define CMD_TYPE_GET_APP_VERSION 0x0010
+
+#define CMD_TYPE_SET_CAMERA_SN 0x0011
+#define CMD_TYPE_GET_CAMERA_SN 0x0012
+#define CMD_TYPE_SET_FPGA_VERSION 0x0013
+#define CMD_TYPE_GET_FPGA_VERSION 0x0014
+#define CMD_TYPE_SET_HARDWARE_VERSION 0x0015
+#define CMD_TYPE_GET_HARDWARE_VERSION 0x0016
+#define CMD_TYPE_SET_PRODUCT_MODEL_VERSION 0x0017
+#define CMD_TYPE_GET_PRODUCT_MODEL_VERSION 0x0018
+
+#define CMD_TYPE_UPDATE_HEADER 0x1000
+#define CMD_TYPE_UPDATE_ERASE 0x1001
+#define CMD_TYPE_UPDATE_DATA 0x1002
+
+#define CMD_TYPE_AE_SWITCH_STEREO 0x2021
+#define CMD_TYPE_AE_DESIRED_BIN_STEREO 0x2022
+#define CMD_TYPE_SET_EXPOSURE_STEREO 0x2023
+#define CMD_TYPE_GET_EXPOSURE_STEREO 0x2024
+#define CMD_TYPE_SET_GAIN_STEREO 0x2025
+#define CMD_TYPE_GET_GAIN_STEREO 0x2026
+
+#define CMD_TYPE_SET_MAX_EXPOSURE_STEREO 0x2028
+#define CMD_TYPE_SET_MIN_EXPOSURE_STEREO 0x2029
+#define CMD_TYPE_SET_MAX_GAIN_STEREO 0x202A
+#define CMD_TYPE_SET_MIN_GAIN_STEREO 0x202B
+#define CMD_TYPE_GET_MAX_EXPOSURE_STEREO 0x202C
+#define CMD_TYPE_GET_MIN_EXPOSURE_STEREO 0x202D
+#define CMD_TYPE_GET_MAX_GAIN_STEREO 0x202E
+#define CMD_TYPE_GET_MIN_GAIN_STEREO 0x202F
+
+#define CMD_TYPE_AE_SWITCH_RGB 0x2041
+#define CMD_TYPE_AE_DESIRED_BIN_RGB 0x2042
+#define CMD_TYPE_SET_EXPOSURE_RGB 0x2043
+#define CMD_TYPE_GET_EXPOSURE_RGB 0x2044
+#define CMD_TYPE_SET_GAIN_RGB 0x2045
+#define CMD_TYPE_GET_GAIN_RGB 0x2046
+
+#define CMD_TYPE_SET_MAX_EXPOSURE_RGB 0x2048
+#define CMD_TYPE_SET_MIN_EXPOSURE_RGB 0x204A
+#define CMD_TYPE_SET_MAX_GAIN_RGB 0x204C
+#define CMD_TYPE_SET_MIN_GAIN_RGB 0x204E
+#define CMD_TYPE_GET_MAX_EXPOSURE_RGB 0x2049
+#define CMD_TYPE_GET_MIN_EXPOSURE_RGB 0x204B
+#define CMD_TYPE_GET_MAX_GAIN_RGB 0x204D
+#define CMD_TYPE_GET_MIN_GAIN_RGB 0x204F
+
+#define CMD_TYPE_SET_DEPTH_DOWNSAMPLE 0x2061
+#define CMD_TYPE_SET_DOWNSAMPLE_MODE 0x206D
+#define CMD_TYPE_SET_RGB_DOWNSAMPLE 0x2063
+#define CMD_TYPE_SET_STEREO_DOWNSAMPLE 0x2069
+#define CMD_TYPE_SET_CHUNK_SIZE 0x206B
+
+#define CMD_TYPE_SET_FRAME_RATE 0x3005
+#define CMD_TYPE_GET_FRAME_RATE 0x3006
+#define CMD_TYPE_SET_TRIGGER_MODE 0x3008
+#define CMD_TYPE_GET_TRIGGER_MODE 0x3009
+#define CMD_TYPE_SET_TRIGGER_OUT 0x300A
+#define CMD_TYPE_GET_TRIGGER_OUT 0x300B
+#define CMD_TYPE_TRIGGER_FRAME 0x300C
+
+#define CMD_TYPE_SET_STEREO_CALIB_DATA 0x4001
+#define CMD_TYPE_GET_STEREO_CALIB_DATA 0x4002
+#define CMD_TYPE_SET_RGB_CALIB_DATA 0x4003
+#define CMD_TYPE_GET_RGB_CALIB_DATA 0x4004
+
+#define CMD_TYPE_SET_DOE_POWER 0x5001
+#define CMD_TYPE_GET_DOE_POWER 0x5002
+
+#define CMD_TYPE_SET_REGISTRATION_SWITCH 0x7002
+
+namespace movesense {
+
 Simou3CameraSettings::Simou3CameraSettings(std::string ip, int port) : mIP(ip), mPort(port) {}
 
 int Simou3CameraSettings::connectToCamera()
@@ -26,27 +108,13 @@ int Simou3CameraSettings::disconnectCamera()
 
 int Simou3CameraSettings::setTriggerMode(int mode)
 {
-    unsigned short cmdType = CMD_TYPE_SET_TRIGGER_MODE;
-    unsigned short cmdLen = sizeof(unsigned);
-    int ret = sendCmd(cmdType, cmdLen, &mode);
-    if (ret <= 0) {
-        return ret;
-    }
-
-    ret = mSock.recvBlock(&mode, cmdLen);
-    return ret;
+    (void)mode;
+    return SIMOU3_ERR_NOT_SUPPORTED;
 }
 int Simou3CameraSettings::getTriggerMode(int& mode)
 {
-    unsigned short cmdType = CMD_TYPE_GET_TRIGGER_MODE;
-    unsigned short cmdLen = sizeof(unsigned);
-    int ret = sendGetCmd(cmdType, cmdLen);
-    if (ret <= 0) {
-        return ret;
-    }
-
-    ret = mSock.recvBlock(&mode, cmdLen);
-    return ret;
+    (void)mode;
+    return SIMOU3_ERR_NOT_SUPPORTED;
 }
 
 int Simou3CameraSettings::getCameraType(int& type)
@@ -64,41 +132,19 @@ int Simou3CameraSettings::getCameraType(int& type)
 
 int Simou3CameraSettings::setTriggerOut(int out)
 {
-    unsigned short cmdType = CMD_TYPE_SET_TRIGGER_OUT;
-    unsigned short cmdLen = sizeof(unsigned);
-    int ret = sendCmd(cmdType, cmdLen, &out);
-    if (ret <= 0) {
-        return ret;
-    }
-
-    ret = mSock.recvBlock(&out, cmdLen);
-    return ret;
+    (void)out;
+    return SIMOU3_ERR_NOT_SUPPORTED;
 }
 int Simou3CameraSettings::getTriggerOut(int& out)
 {
-    unsigned short cmdType = CMD_TYPE_GET_TRIGGER_OUT;
-    unsigned short cmdLen = sizeof(unsigned);
-    int ret = sendGetCmd(cmdType, cmdLen);
-    if (ret <= 0) {
-        return ret;
-    }
-
-    ret = mSock.recvBlock(&out, cmdLen);
-    return ret;
+    (void)out;
+    return SIMOU3_ERR_NOT_SUPPORTED;
 }
 
 int Simou3CameraSettings::triggerFrame(int frameCnt)
 {
-    simou3_log("Simou3CameraSettings::triggerFrame: " + std::to_string(frameCnt));
-    unsigned short cmdType = CMD_TYPE_TRIGGER_FRAME;
-    unsigned short cmdLen = sizeof(int);
-    int ret = sendCmd(cmdType, cmdLen, &frameCnt);
-    if (ret <= 0) {
-        return ret;
-    }
-
-    ret = mSock.recvBlock(&frameCnt, cmdLen);
-    return ret;
+    (void)frameCnt;
+    return SIMOU3_ERR_NOT_SUPPORTED;
 }
 
 int Simou3CameraSettings::getFirmwareVersion(unsigned& firmware)
@@ -943,19 +989,6 @@ int Simou3CameraSettings::getProductModelVersion(std::string& product)
     return ret;
 }
 
-int Simou3CameraSettings::setDepthSwitch(bool onoff)
-{
-    unsigned short cmdType = CMD_TYPE_SET_DEPTH_SWITCH;
-    unsigned short cmdLen = sizeof(int);
-    int onoffLocal = onoff ? 1 : 0;
-    int ret = sendCmd(cmdType, cmdLen, &onoffLocal);
-    if (ret <= 0) {
-        return ret;
-    }
-    ret = mSock.recvBlock(&onoffLocal, cmdLen);
-    return ret;
-}
-
 int Simou3CameraSettings::setRegistrationSwitch(bool onoff)
 {
     unsigned short cmdType = CMD_TYPE_SET_REGISTRATION_SWITCH;
@@ -1101,3 +1134,5 @@ int Simou3CameraSettings::sendCmd(unsigned short cmdType, unsigned short len, co
     }
     return ret;
 }
+
+} // namespace movesense

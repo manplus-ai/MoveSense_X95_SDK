@@ -8,6 +8,8 @@
 #include <atomic>
 #include <cstdio>
 #include <thread>
+using namespace movesense;
+
 class ImuReceiver {
 public:
     ~ImuReceiver();
@@ -27,7 +29,7 @@ public:
 
 private:
     void Loop();
-    void ParseAndWrite(const IMU& s);
+    void ParseAndWrite(const Imu& s);
 
     CameraSession* m_session = nullptr;
     std::thread m_thread;

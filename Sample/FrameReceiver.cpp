@@ -5,6 +5,8 @@
 
 #include <chrono>
 
+using namespace movesense;
+
 FrameReceiver::~FrameReceiver()
 {
     Stop();

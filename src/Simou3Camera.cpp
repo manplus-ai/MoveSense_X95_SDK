@@ -9,6 +9,8 @@
 #include <chrono>
 #include <cstring>
 
+namespace movesense {
+
 static int64_t nowWallUs()
 {
     return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -273,11 +275,6 @@ int Simou3Camera::setChunkSize(int bytes)
     return mSimou3CameraSettings.setChunkSize(bytes);
 }
 
-int Simou3Camera::setDepthSwitch(bool onoff)
-{
-    return mSimou3CameraSettings.setDepthSwitch(onoff);
-}
-
 int Simou3Camera::setRegistrationSwitch(bool onoff)
 {
     return mSimou3CameraSettings.setRegistrationSwitch(onoff);
@@ -423,7 +420,7 @@ Simou3Stats Simou3Camera::getStats()
 {
     return mSimou3CameraTransfer.getStats();
 }
-int Simou3Camera::getIMU(std::vector<IMU>& out, int num)
+int Simou3Camera::getIMU(std::vector<Imu>& out, int num)
 {
     return mSimou3CameraTransfer.getIMU(out, num);
 }
@@ -483,3 +480,5 @@ int Simou3Camera::alignTimeToHost()
     simou3_log("alignTimeToHost: offset=" + std::to_string(bestOffset) + "us (min delay=" + std::to_string(bestDelay) + "us)");
     return 1;
 }
+
+} // namespace movesense
