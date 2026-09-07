@@ -3,7 +3,7 @@
 
 #pragma once
 #include "ModeCatalog.h"
-#include "Simou3Camera.h"
+#include "movesense/Simou3Camera.h"
 
 #include <string>
 #include <vector>

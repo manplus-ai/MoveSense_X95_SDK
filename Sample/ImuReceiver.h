@@ -3,7 +3,7 @@
 
 #pragma once
 #include "CameraSession.h"
-#include "Simou3Camera.h"
+#include "movesense/Simou3Camera.h"
 
 #include <atomic>
 #include <cstdio>

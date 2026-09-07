@@ -48,8 +48,8 @@ if "%BUILT%"=="0" (
 echo.
 echo ============================================
 echo   BUILD OK. SDK libs under win_build\vsXXXX\arch\config\
-echo     e.g. win_build\vs2017\x64\Release\Simou3CameraSDK.dll (+ .lib)
-echo          win_build\vs2017\x64\Debug\Simou3CameraSDKD.dll  (+ .lib)
+echo     e.g. win_build\vs2017\x64\Release\MoveSense_X95_SDK.dll (+ .lib)
+echo          win_build\vs2017\x64\Debug\MoveSense_X95_SDKD.dll  (+ .lib)
 echo ============================================
 exit /b 0
 
@@ -78,9 +78,9 @@ if errorlevel 1 (
 )
 
 echo   [build] %TAG% %ADIR%  Release + Debug
-"%CMAKE%" --build "%BDIR%" --config Release --target Simou3CameraSDK
+"%CMAKE%" --build "%BDIR%" --config Release --target MoveSense_X95_SDK
 if errorlevel 1 ( echo   [ERROR] %TAG% %ADIR% Release FAILED & goto :eof )
-"%CMAKE%" --build "%BDIR%" --config Debug --target Simou3CameraSDK
+"%CMAKE%" --build "%BDIR%" --config Debug --target MoveSense_X95_SDK
 if errorlevel 1 ( echo   [ERROR] %TAG% %ADIR% Debug FAILED & goto :eof )
 
 set BUILT=1

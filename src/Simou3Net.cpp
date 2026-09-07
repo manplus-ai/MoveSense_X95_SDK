@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 Humanplus Intelligent Robotics Technology Co.,Ltd. All rights reserved.
 
-#include "Simou3Net.h"
+#include "movesense/Simou3Net.h"
 
 #include "Simou3Internal.h"
 #include "Simou3Log.h"

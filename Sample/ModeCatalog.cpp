@@ -3,7 +3,7 @@
 
 #include "ModeCatalog.h"
 
-#include "transfer_mode_def.h"
+#include "movesense/transfer_mode_def.h"
 
 #include <cstdio>
 
