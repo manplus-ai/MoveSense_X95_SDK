@@ -1,6 +1,6 @@
 # MoveSense X95 SDK
 
-> **Status: 0.2.0 — early release.** The API is **not** stable yet and
+> **Status: 0.2.1 — early release.** The API is **not** stable yet and
 > breaking changes are expected before 1.0.
 
 Cross-platform (Linux / Windows) C++ SDK for the MoveSense X95-series
@@ -25,8 +25,10 @@ The host talks to the camera over Ethernet using a private protocol:
 
 ```
 MoveSense_X95_SDK/
-├── include/movesense/  Public headers
-│   └── Simou3Camera.h  API
+├── include/movesense/       Public headers
+│   ├── Simou3Camera.h       camera API (umbrella header)
+│   ├── Simou3CalibLayout.h  calibration blob field offsets
+│   └── ...                  types, settings, transfer, scan, net
 ├── src/                SDK implementation
 ├── Sample/             Example program (depends on OpenCV, display only)
 ├── cmake/              Package config template
@@ -57,7 +59,7 @@ Installed layout (relative to `CMAKE_INSTALL_PREFIX`, default `/usr/local`):
 
 ```
 include/movesense/*.h                         public headers
-lib/libMoveSense_X95_SDK.so(.0.2)(.0.2.0)     shared library
+lib/libMoveSense_X95_SDK.so(.0.2)(.0.2.1)     shared library
 lib/cmake/MoveSense_X95_SDK/*.cmake           package config (for find_package)
 ```
 

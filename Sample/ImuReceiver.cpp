@@ -9,10 +9,6 @@
 
 using namespace movesense;
 
-namespace {
-const int IMU_SAMPLE_BYTES = 24;
-}
-
 ImuReceiver::~ImuReceiver()
 {
     Stop();
