@@ -1,6 +1,6 @@
 # MoveSense X95 SDK
 
-> **状态:0.2.0 — 早期版本。** API **尚不稳定**,1.0 之前预计会有破坏性变更。
+> **状态:0.2.1 — 早期版本。** API **尚不稳定**,1.0 之前预计会有破坏性变更。
 
 跨平台(Linux / Windows)C++ SDK,用于 MoveSense X95 系列主/被动式双目深度相机。
 深度在设备端算好后传给上位机。另有一路 RGB,其标定参数**仅用于点云上色,不参与
@@ -19,8 +19,10 @@
 
 ```
 MoveSense_X95_SDK/
-├── include/movesense/  公开头文件
-│   └── Simou3Camera.h  API
+├── include/movesense/       公开头文件
+│   ├── Simou3Camera.h       相机 API(总入口头)
+│   ├── Simou3CalibLayout.h  标定数组字段偏移
+│   └── ...                  类型 / 参数 / 传输 / 扫描 / 网络
 ├── src/                SDK 库实现
 ├── Sample/             示例程序(依赖 OpenCV,仅用于显示)
 ├── cmake/              package config 模板
@@ -50,7 +52,7 @@ sudo make install          # 默认装到 /usr/local
 
 ```
 include/movesense/*.h                         公开头文件
-lib/libMoveSense_X95_SDK.so(.0.2)(.0.2.0)     动态库
+lib/libMoveSense_X95_SDK.so(.0.2)(.0.2.1)     动态库
 lib/cmake/MoveSense_X95_SDK/*.cmake           package config(供 find_package)
 ```
 

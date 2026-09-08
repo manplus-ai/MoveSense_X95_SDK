@@ -5,9 +5,9 @@
 | 文件                | 职责                                                                            |
 | ------------------- | ------------------------------------------------------------------------------- |
 | `ModeCatalog.*`   | 11 个模式的规格表(订阅流/降采样/seg 画哪)+`Mask()` 拼 transferMode + 菜单打印 |
-| `CameraSession.*` | 纯扫描选相机 → 按模式开(逐流下发降采样)→ 取帧/取 IMU                          |
+| `CameraSession.*` | 扫描选相机 → 按模式开(逐流下发降采样)→ 按机型打印标定(A/AP 双目+RGB,P 仅双目)→ 取帧/取 IMU |
 | `FrameReceiver.*` | 收帧线程 → 存最新帧;`TryGetLatest` / `Fps()`                               |
-| `ImuReceiver.*`   | 收 IMU 线程 → 解析 24B → CSV 录制;`Rate()`                                  |
+| `ImuReceiver.*`   | 收 IMU 线程 → SDK 已解析的 `Imu` 结构 → CSV 录制;`Rate()`                   |
 | `SampleApp.*`     | 编排器:显示、SEG(YDR1)叠框、控制条、按键                                        |
 | `main.cpp`        | 入口                                                                            |
 

@@ -45,6 +45,7 @@ public:
 
 private:
     void ApplyDownsample(const ModeSpec& mode);
+    void PrintCalibration();
 
     Simou3Camera* m_cam = nullptr;
     std::string m_ip;

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Humanplus Intelligent Robotics Technology Co.,Ltd. All rights reserved.
 
 #pragma once
+#include "Simou3CalibLayout.h"
 #include "Simou3Net.h"
 
 #include <cstdint>
@@ -63,11 +64,11 @@ public:
     int setDOEPower(unsigned power);
     int getDOEPower(unsigned& power);
 
-    int setStereoCalibData(unsigned char* data, int len = 47 * 4);
-    int getStereoCalibData(unsigned char* data, int len = 47 * 4);
+    int setStereoCalibData(unsigned char* data, int len = calib::kStereoCalibBytes);
+    int getStereoCalibData(unsigned char* data, int len = calib::kStereoCalibBytes);
 
-    int setRGBCalibData(unsigned char* data, int len = 59 * 4);
-    int getRGBCalibData(unsigned char* data, int len = 59 * 4);
+    int setRGBCalibData(unsigned char* data, int len = calib::kRgbCalibBytes);
+    int getRGBCalibData(unsigned char* data, int len = calib::kRgbCalibBytes);
 
     int setFrameRate(int fps);
     int getFrameRate(int& fps);
