@@ -244,10 +244,9 @@ void Simou3CameraTransfer::publish(MovesenseFrame&& f)
     bool degraded = f.m_degraded;
     if (degraded) {
         mStIncomplete.fetch_add(1);
-    }
-
-    if (degraded) {
-        return;
+        if (mDropDegraded.load(std::memory_order_relaxed)) {
+            return;
+        }
     }
 
     int64_t off = mPtsOffset.load(std::memory_order_relaxed);
@@ -265,6 +264,11 @@ void Simou3CameraTransfer::publish(MovesenseFrame&& f)
     mSlot = std::move(f);
     mSlotFull.store(true, std::memory_order_release);
     mSlotCv.notify_one();
+}
+
+void Simou3CameraTransfer::setDropDegradedFrame(bool onoff)
+{
+    mDropDegraded.store(onoff, std::memory_order_relaxed);
 }
 
 void Simou3CameraTransfer::stashChunk(const Simou3ChunkHdr& c, std::vector<uint8_t>&& buf)

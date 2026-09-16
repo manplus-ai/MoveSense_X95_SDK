@@ -33,6 +33,7 @@ public:
 
     int getIMU(std::vector<Imu>& out, int num = 200);
     void setPtsOffset(int64_t offsetUs);
+    void setDropDegradedFrame(bool onoff);
 
 public:
     std::string mIP;
@@ -65,6 +66,7 @@ private:
     std::atomic<bool> mSlotFull { false };
     std::atomic<uint64_t> mStEmpty { 0 }, mStAbn { 0 }, mStIncomplete { 0 }, mStOverwrite { 0 }, mStCorrupt { 0 };
     std::atomic<int64_t> mPtsOffset { 0 };
+    std::atomic<bool> mDropDegraded { true };
 };
 
 } // namespace movesense

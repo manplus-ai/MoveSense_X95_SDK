@@ -412,18 +412,27 @@ bool Simou3Camera::getFrame(MovesenseFrame& out)
 {
     return mSimou3CameraTransfer.getFrame(out);
 }
+
 bool Simou3Camera::getFrame(MovesenseFrame& out, int timeoutMs)
 {
     return mSimou3CameraTransfer.getFrame(out, timeoutMs);
 }
+
 Simou3Stats Simou3Camera::getStats()
 {
     return mSimou3CameraTransfer.getStats();
 }
+
+void Simou3Camera::setDropDegradedFrame(bool onoff)
+{
+    mSimou3CameraTransfer.setDropDegradedFrame(onoff);
+}
+
 int Simou3Camera::getIMU(std::vector<Imu>& out, int num)
 {
     return mSimou3CameraTransfer.getIMU(out, num);
 }
+
 int Simou3Camera::alignTimeToHost()
 {
     Simou3Net net;

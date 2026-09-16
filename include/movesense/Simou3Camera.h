@@ -25,6 +25,7 @@ public:
     bool getFrame(MovesenseFrame& out);
     bool getFrame(MovesenseFrame& out, int timeoutMs);
     Simou3Stats getStats();
+    void setDropDegradedFrame(bool onoff);
     int getIMU(std::vector<Imu>& out, int num = 200);
     int alignTimeToHost();
 
