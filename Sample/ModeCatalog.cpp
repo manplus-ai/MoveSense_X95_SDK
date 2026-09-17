@@ -3,24 +3,31 @@
 
 #include "ModeCatalog.h"
 
+#include "movesense/Simou3Types.h"
 #include "movesense/transfer_mode_def.h"
 
 #include <cstdio>
 
 namespace {
 
+const int NO_ROI = -1;
+const int ROI_RGB_RECT = static_cast<int>(movesense::RoiStream::RgbRect);
+const int ROI_RIGHT_RECT = static_cast<int>(movesense::RoiStream::RightRect);
+
 const ModeSpec MODES[] = {
-    { "lrrgb", false, 1, 1, 1, 0, 0, 0, 0, 0, 0, -1, 0, "Stereo gray + center RGB, full res (no depth/IMU/SEG)" },
-    { "rgbd_imu_seg", false, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0, "RGB+depth+IMU+SEG, full res" },
-    { "rgbd_low_imu_seg", false, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, "RGB+depth, pre-downsample (whole 640) +IMU+SEG" },
-    { "rgbd_mix_imu_seg", false, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 0, "RGB full + depth post-downsample 640 +IMU+SEG" },
-    { "lrgbd_imu_seg", false, 1, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0, "Left+RGB+depth+IMU+SEG, full res" },
-    { "lrgbd_low_imu_seg", false, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, "Left+RGB+depth, pre-downsample (whole 640) +IMU+SEG" },
-    { "lrgbd_mix_imu_seg", false, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 0, "Left full + RGB full + depth post-downsample 640 +IMU+SEG" },
-    { "lr", true, 1, 1, 0, 0, 0, 0, 0, 0, 0, -1, 1, "Stereo color, full res (no depth/IMU/SEG)" },
-    { "lrd_imu_seg", true, 1, 1, 0, 1, 1, 1, 0, 0, 0, 1, 1, "Stereo+depth+IMU+SEG, full res" },
-    { "lrd_low_imu_seg", true, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, "Stereo+depth, pre-downsample (whole 640) +IMU+SEG" },
-    { "lrd_mix_imu_seg", true, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, "Stereo full + depth post-downsample 640 +IMU+SEG" },
+    { "lrrgb", false, 1, 1, 1, 0, 0, 0, 0, 0, 0, -1, 0, NO_ROI, "Stereo gray + center RGB, full res (no depth/IMU/SEG)" },
+    { "rgbd_imu_seg", false, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0, NO_ROI, "RGB+depth+IMU+SEG, full res" },
+    { "rgbd_low_imu_seg", false, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, NO_ROI, "RGB+depth, pre-downsample (whole 640) +IMU+SEG" },
+    { "rgbd_mix_imu_seg", false, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 0, NO_ROI, "RGB full + depth post-downsample 640 +IMU+SEG" },
+    { "lrgbd_imu_seg", false, 1, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0, NO_ROI, "Left+RGB+depth+IMU+SEG, full res" },
+    { "lrgbd_low_imu_seg", false, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, NO_ROI, "Left+RGB+depth, pre-downsample (whole 640) +IMU+SEG" },
+    { "lrgbd_mix_imu_seg", false, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 0, NO_ROI, "Left full + RGB full + depth post-downsample 640 +IMU+SEG" },
+    { "lrrgb_seg_roi", false, 1, 1, 1, 0, 0, 1, 0, 0, 0, -1, 0, ROI_RGB_RECT, "Stereo gray + RGB full res, SEG on RGB, RGB cropped by ROI (no depth/IMU)" },
+    { "lr", true, 1, 1, 0, 0, 0, 0, 0, 0, 0, -1, 1, NO_ROI, "Stereo color, full res (no depth/IMU/SEG)" },
+    { "lrd_imu_seg", true, 1, 1, 0, 1, 1, 1, 0, 0, 0, 1, 1, NO_ROI, "Stereo+depth+IMU+SEG, full res" },
+    { "lrd_low_imu_seg", true, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, NO_ROI, "Stereo+depth, pre-downsample (whole 640) +IMU+SEG" },
+    { "lrd_mix_imu_seg", true, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, NO_ROI, "Stereo full + depth post-downsample 640 +IMU+SEG" },
+    { "lr_seg_roi", true, 1, 1, 0, 0, 0, 1, 0, 0, 0, -1, 1, ROI_RIGHT_RECT, "Stereo color full res, SEG on right, right cropped by ROI (no depth/IMU)" },
 };
 const int MODE_N = (int)(sizeof(MODES) / sizeof(MODES[0]));
 

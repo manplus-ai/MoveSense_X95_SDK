@@ -29,6 +29,7 @@ if exist "%CMAKE%" goto have_cmake
 set "CMAKE=C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
 if exist "%CMAKE%" goto have_cmake
 echo [ERROR] cmake not found. Install CMake or add it to PATH.
+pause
 exit /b 1
 
 :have_cmake
@@ -44,6 +45,7 @@ call :build_vs "Visual Studio 16 2019" vs2019
 if "%BUILT%"=="0" (
     echo.
     echo [ERROR] Neither VS2017 nor VS2019 found - nothing was built.
+    pause
     exit /b 1
 )
 
@@ -53,6 +55,8 @@ echo   BUILD OK. SDK libs under win_build\vsXXXX\arch\config\
 echo     e.g. win_build\vs2017\x64\Release\MoveSense_X95_SDK.dll (+ .lib)
 echo          win_build\vs2017\x64\Debug\MoveSense_X95_SDKD.dll  (+ .lib)
 echo ============================================
+REM keep the window open when launched by double-click
+pause
 exit /b 0
 
 REM ==================== subroutines ====================

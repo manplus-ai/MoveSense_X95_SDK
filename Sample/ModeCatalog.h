@@ -11,11 +11,16 @@ struct ModeSpec {
     bool m_downStereo, m_downRgb, m_downDepth;
     int m_downMode;
     bool m_segOnRight;
+    int m_roiStream;
     std::string m_desc;
 
     bool HasStereo() const
     {
         return m_hasL || m_hasR;
+    }
+    bool HasRoi() const
+    {
+        return m_roiStream >= 0;
     }
     unsigned Mask() const;
 };

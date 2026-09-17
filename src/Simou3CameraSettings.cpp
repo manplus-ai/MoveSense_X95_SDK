@@ -3,6 +3,8 @@
 
 #include "movesense/Simou3CameraSettings.h"
 
+#include <cstring>
+
 #include "Simou3Internal.h"
 #include "Simou3Log.h"
 #include "crc.h"
@@ -83,6 +85,9 @@
 #define CMD_TYPE_GET_STEREO_CALIB_DATA 0x4002
 #define CMD_TYPE_SET_RGB_CALIB_DATA 0x4003
 #define CMD_TYPE_GET_RGB_CALIB_DATA 0x4004
+
+#define CMD_TYPE_SET_ROI 0x2071
+#define CMD_TYPE_GET_ROI 0x2072
 
 #define CMD_TYPE_SET_DOE_POWER 0x5001
 #define CMD_TYPE_GET_DOE_POWER 0x5002
@@ -627,6 +632,79 @@ int Simou3CameraSettings::getDOEPower(unsigned& power)
     }
 
     ret = mSock.recvBlock(&power, cmdLen);
+    return ret;
+}
+
+int Simou3CameraSettings::checkRoi(unsigned x1, unsigned y1, unsigned x2, unsigned y2)
+{
+    if (x1 > 65535u || y1 > 65535u || x2 > 65535u || y2 > 65535u) {
+        return SIMOU3_ERR_ROI_INVALID;
+    }
+    if (x2 <= x1 || y2 <= y1) {
+        return SIMOU3_ERR_ROI_INVALID;
+    }
+    if ((x2 - x1) < 16u || (y2 - y1) < 16u) {
+        return SIMOU3_ERR_ROI_INVALID;
+    }
+    if (((x1 | y1 | x2 | y2) & 1u) != 0) {
+        return SIMOU3_ERR_ROI_INVALID;
+    }
+    return 1;
+}
+
+int Simou3CameraSettings::setRoi(unsigned stream, bool enable, unsigned x1, unsigned y1, unsigned x2, unsigned y2)
+{
+    if (stream > 5u) {
+        return SIMOU3_ERR_NOT_SUPPORTED;
+    }
+    if (enable) {
+        int chk = checkRoi(x1, y1, x2, y2);
+        if (chk <= 0) {
+            return chk;
+        }
+    } else {
+        x1 = y1 = x2 = y2 = 0;
+    }
+    uint32_t req[6] = { stream, enable ? 1u : 0u, x1, y1, x2, y2 };
+    uint32_t rep[6] = { 0, 0, 0, 0, 0, 0 };
+    unsigned short cmdType = CMD_TYPE_SET_ROI;
+    unsigned short cmdLen = sizeof(req);
+    int ret = sendCmd(cmdType, cmdLen, req);
+    if (ret <= 0) {
+        return ret;
+    }
+    ret = mSock.recvBlock(rep, cmdLen);
+    if (ret <= 0) {
+        return ret;
+    }
+    if (memcmp(req, rep, sizeof(req)) != 0) {
+        return SIMOU3_ERR_ROI_REJECTED;
+    }
+    return ret;
+}
+
+int Simou3CameraSettings::getRoi(unsigned stream, bool& enable, unsigned& x1, unsigned& y1, unsigned& x2, unsigned& y2)
+{
+    if (stream > 5u) {
+        return SIMOU3_ERR_NOT_SUPPORTED;
+    }
+    uint32_t req[6] = { stream, 0, 0, 0, 0, 0 };
+    uint32_t rep[6] = { 0, 0, 0, 0, 0, 0 };
+    unsigned short cmdType = CMD_TYPE_GET_ROI;
+    unsigned short cmdLen = sizeof(req);
+    int ret = sendCmd(cmdType, cmdLen, req);
+    if (ret <= 0) {
+        return ret;
+    }
+    ret = mSock.recvBlock(rep, cmdLen);
+    if (ret <= 0) {
+        return ret;
+    }
+    enable = (rep[1] != 0);
+    x1 = rep[2];
+    y1 = rep[3];
+    x2 = rep[4];
+    y2 = rep[5];
     return ret;
 }
 

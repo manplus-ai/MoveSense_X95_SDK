@@ -111,30 +111,60 @@ const char* CocoName(int classId)
     return (classId >= 0 && classId < 80) ? kCocoNames[classId] : "?";
 }
 
-void DrawSeg(cv::Mat& bgr, const std::vector<DetectionBox>& dets, int coordW, int coordH)
+void DrawSeg(cv::Mat& bgr, const std::vector<DetectionBox>& dets, int coordW, int coordH, int fullW, int fullH, const RoiRect& roi)
 {
     if (dets.empty() || coordW <= 0 || coordH <= 0) {
         return;
     }
-    float sx = (float)bgr.cols / (float)coordW;
-    float sy = (float)bgr.rows / (float)coordH;
+    if (!roi.active) {
+        fullW = bgr.cols;
+        fullH = bgr.rows;
+    }
+    if (fullW <= 0 || fullH <= 0) {
+        return;
+    }
+    float sx = (float)fullW / (float)coordW;
+    float sy = (float)fullH / (float)coordH;
+    int ox = roi.active ? roi.x1 : 0;
+    int oy = roi.active ? roi.y1 : 0;
     for (const DetectionBox& b : dets) {
-        cv::Point p1((int)(b.x1 * sx), (int)(b.y1 * sy));
-        cv::Point p2((int)(b.x2 * sx), (int)(b.y2 * sy));
-        cv::rectangle(bgr, p1, p2, cv::Scalar(0, 255, 0), 2);
+        int x1 = (int)(b.x1 * sx) - ox;
+        int y1 = (int)(b.y1 * sy) - oy;
+        int x2 = (int)(b.x2 * sx) - ox;
+        int y2 = (int)(b.y2 * sy) - oy;
+        bool clipped = false;
+        if (x1 < 0) { x1 = 0; clipped = true; }
+        if (y1 < 0) { y1 = 0; clipped = true; }
+        if (x2 > bgr.cols) { x2 = bgr.cols; clipped = true; }
+        if (y2 > bgr.rows) { y2 = bgr.rows; clipped = true; }
+        if (x2 <= x1 || y2 <= y1) {
+            continue;
+        }
+        cv::Scalar color = clipped ? cv::Scalar(0, 200, 255) : cv::Scalar(0, 255, 0);
+        cv::rectangle(bgr, cv::Point(x1, y1), cv::Point(x2, y2), color, 2);
         char text[64];
         snprintf(text, sizeof(text), "%s %.2f", CocoName(b.classId), b.score);
-        cv::putText(bgr, text, cv::Point(p1.x, p1.y - 4), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 1);
+        cv::putText(bgr, text, cv::Point(x1, y1 > 12 ? y1 - 4 : y1 + 12), cv::FONT_HERSHEY_SIMPLEX, 0.5, color, 1);
     }
 }
 
-void ShowPlaneWithSeg(const char* win, const MovesenseFrame::Plane& img, const std::vector<DetectionBox>& dets, int coordW, int coordH)
+void ShowPlaneWithSeg(const char* win, const MovesenseFrame::Plane& img, const std::vector<DetectionBox>& dets, int coordW, int coordH, int fullW,
+    int fullH, const RoiRect& roi)
 {
     cv::Mat bgr;
     if (!PlaneToMat(img, bgr)) {
         return;
     }
-    DrawSeg(bgr, dets, coordW, coordH);
+    DrawSeg(bgr, dets, coordW, coordH, fullW, fullH, roi);
+    if (bgr.cols < 256) {
+        int k = 256 / bgr.cols;
+        if (k > 8) {
+            k = 8;
+        }
+        if (k > 1) {
+            cv::resize(bgr, bgr, cv::Size(bgr.cols * k, bgr.rows * k), 0, 0, cv::INTER_NEAREST);
+        }
+    }
     cv::imshow(win, bgr);
 }
 
@@ -270,16 +300,19 @@ void SampleApp::RenderFrame(const MovesenseFrame& frame)
     if (m_mode->m_hasL) {
         ShowPlane("L", frame.leftRect());
     }
+    const RoiRect& roi = m_session.Roi();
+    int fullW = frame.leftRect().width;
+    int fullH = frame.leftRect().height;
     if (m_mode->m_hasRgb) {
         if (segOnRgb) {
-            ShowPlaneWithSeg("RGB", frame.rgbRect(), frame.detections(), frame.detCoordW(), frame.detCoordH());
+            ShowPlaneWithSeg("RGB", frame.rgbRect(), frame.detections(), frame.detCoordW(), frame.detCoordH(), fullW, fullH, roi);
         } else {
             ShowPlane("RGB", frame.rgbRect());
         }
     }
     if (m_mode->m_hasR) {
         if (segOnRight) {
-            ShowPlaneWithSeg("R", frame.rightRect(), frame.detections(), frame.detCoordW(), frame.detCoordH());
+            ShowPlaneWithSeg("R", frame.rightRect(), frame.detections(), frame.detCoordW(), frame.detCoordH(), fullW, fullH, roi);
         } else {
             ShowPlane("R", frame.rightRect());
         }

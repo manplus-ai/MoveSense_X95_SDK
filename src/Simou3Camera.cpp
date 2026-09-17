@@ -227,6 +227,14 @@ int Simou3Camera::getDOEPower(unsigned& power)
 {
     return mSimou3CameraSettings.getDOEPower(power);
 }
+int Simou3Camera::setRoi(RoiStream stream, bool enable, unsigned x1, unsigned y1, unsigned x2, unsigned y2)
+{
+    return mSimou3CameraSettings.setRoi(static_cast<unsigned>(stream), enable, x1, y1, x2, y2);
+}
+int Simou3Camera::getRoi(RoiStream stream, bool& enable, unsigned& x1, unsigned& y1, unsigned& x2, unsigned& y2)
+{
+    return mSimou3CameraSettings.getRoi(static_cast<unsigned>(stream), enable, x1, y1, x2, y2);
+}
 
 int Simou3Camera::setStereoCalibData(unsigned char* data, int len)
 {

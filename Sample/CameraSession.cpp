@@ -16,6 +16,9 @@ const int DEFAULT_FPS = 15;
 const int DEFAULT_EXPO_US = 5000;
 const int DEFAULT_GAIN_X = 4;
 const int GAIN_UNIT = 128;
+const int ROI_ORIGIN_X = 0;
+const int ROI_ORIGIN_Y = 0;
+const int ROI_SIZE = 64;
 
 void PrintIntrinsics(const char* label, const float* v)
 {
@@ -61,6 +64,26 @@ void PrintImuSegment(const float* seg)
     PrintMatrix3x3("imu R:", seg + calib::kImuRotationRowMajor);
     printf("  %-10s [%.4f %.4f %.4f] mm\n", "imu t:", seg[calib::kImuTranslationMm + 0], seg[calib::kImuTranslationMm + 1],
         seg[calib::kImuTranslationMm + 2]);
+}
+
+const char* RoiStreamName(int stream)
+{
+    switch (stream) {
+        case static_cast<int>(RoiStream::LeftRaw):
+            return "left_raw";
+        case static_cast<int>(RoiStream::RightRaw):
+            return "right_raw";
+        case static_cast<int>(RoiStream::RgbRaw):
+            return "rgb_raw";
+        case static_cast<int>(RoiStream::LeftRect):
+            return "left_rect";
+        case static_cast<int>(RoiStream::RightRect):
+            return "right_rect";
+        case static_cast<int>(RoiStream::RgbRect):
+            return "rgb_rect";
+        default:
+            return "?";
+    }
 }
 } // namespace
 
@@ -145,6 +168,45 @@ void CameraSession::ApplyDownsample(const ModeSpec& mode)
     m_cam->setDownsampleMode(mode.m_downMode >= 0 ? mode.m_downMode : 1);
 }
 
+bool CameraSession::ApplyRoi(const ModeSpec& mode)
+{
+    m_roi = RoiRect();
+    m_roiStream = -1;
+    for (int st = 0; st <= static_cast<int>(RoiStream::RgbRect); ++st) {
+        m_cam->setRoi(static_cast<RoiStream>(st), false, 0, 0, 0, 0);
+    }
+    if (!mode.HasRoi()) {
+        return true;
+    }
+    RoiStream stream = static_cast<RoiStream>(mode.m_roiStream);
+    unsigned x1 = ROI_ORIGIN_X, y1 = ROI_ORIGIN_Y;
+    unsigned x2 = ROI_ORIGIN_X + ROI_SIZE, y2 = ROI_ORIGIN_Y + ROI_SIZE;
+    int rc = m_cam->setRoi(stream, true, x1, y1, x2, y2);
+    if (rc <= 0) {
+        printf("[Sample] setRoi(%s, [%u,%u]-[%u,%u]) failed rc=%d%s\n", RoiStreamName(mode.m_roiStream), x1, y1, x2, y2, rc,
+            rc == SIMOU3_ERR_ROI_REJECTED ? " (camera rejected)" : rc == SIMOU3_ERR_ROI_INVALID ? " (invalid rect)" : "");
+        return false;
+    }
+    m_roiStream = mode.m_roiStream;
+    m_roi.active = true;
+    m_roi.x1 = (int)x1;
+    m_roi.y1 = (int)y1;
+    m_roi.x2 = (int)x2;
+    m_roi.y2 = (int)y2;
+    printf("[Sample] ROI %s = [%u,%u]-[%u,%u]\n", RoiStreamName(mode.m_roiStream), x1, y1, x2, y2);
+    return true;
+}
+
+void CameraSession::ClearRoi()
+{
+    if (m_cam && m_roiStream >= 0) {
+        m_cam->setRoi(static_cast<RoiStream>(m_roiStream), false, 0, 0, 0, 0);
+        printf("[Sample] ROI %s cleared\n", RoiStreamName(m_roiStream));
+    }
+    m_roiStream = -1;
+    m_roi = RoiRect();
+}
+
 bool CameraSession::Open(const ModeSpec& mode)
 {
     if (!m_cam) {
@@ -170,17 +232,21 @@ bool CameraSession::Open(const ModeSpec& mode)
         }
     }
 
-    PrintCalibration();
-
     ApplyDownsample(mode);
     m_cam->setFrameRate(DEFAULT_FPS);
     m_cam->setTriggerMode(1);
+    if (!ApplyRoi(mode)) {
+        return false;
+    }
 
     if (m_cam->openCamera((int)mode.Mask()) <= 0) {
         printf("[Sample] openCamera failed (mask=0x%x)\n", mode.Mask());
+        ClearRoi();
         return false;
     }
     m_opened = true;
+
+    PrintCalibration();
 
     m_cam->setStereoAutoExpo(0);
     m_cam->setStereoExposure((unsigned)DEFAULT_EXPO_US);
@@ -197,6 +263,7 @@ bool CameraSession::Open(const ModeSpec& mode)
 void CameraSession::Close()
 {
     if (m_cam) {
+        ClearRoi();
         if (m_opened) {
             m_cam->closeCamera();
         }
