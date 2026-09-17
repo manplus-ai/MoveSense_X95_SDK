@@ -18,6 +18,8 @@ typedef int socket_t;
 #endif
 
 #define SIMOU3_ERR_NOT_SUPPORTED (-100)
+#define SIMOU3_ERR_ROI_INVALID (-101)
+#define SIMOU3_ERR_ROI_REJECTED (-102)
 
 namespace movesense {
 
@@ -42,6 +44,7 @@ struct NetworkInterface {
 };
 
 enum class PFormat : uint8_t { PF_Y8 = 0, PF_NV21 = 1, PF_DEPTH16 = 2 };
+enum class RoiStream : uint32_t { LeftRaw = 0, RightRaw = 1, RgbRaw = 2, LeftRect = 3, RightRect = 4, RgbRect = 5 };
 
 #pragma pack(push, 1)
 struct DetectionBox {

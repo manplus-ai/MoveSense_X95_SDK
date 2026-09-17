@@ -10,6 +10,11 @@
 
 using namespace movesense;
 
+struct RoiRect {
+    bool active = false;
+    int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
+};
+
 class CameraSession {
 public:
     ~CameraSession();
@@ -43,12 +48,21 @@ public:
         return m_cam;
     }
 
+    const RoiRect& Roi() const
+    {
+        return m_roi;
+    }
+
 private:
     void ApplyDownsample(const ModeSpec& mode);
+    bool ApplyRoi(const ModeSpec& mode);
+    void ClearRoi();
     void PrintCalibration();
 
     Simou3Camera* m_cam = nullptr;
     std::string m_ip;
     int m_cameraType = -1;
     bool m_opened = false;
+    int m_roiStream = -1;
+    RoiRect m_roi;
 };

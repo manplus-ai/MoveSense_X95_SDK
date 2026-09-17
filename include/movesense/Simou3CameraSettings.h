@@ -63,6 +63,9 @@ public:
 
     int setDOEPower(unsigned power);
     int getDOEPower(unsigned& power);
+    int setRoi(unsigned stream, bool enable, unsigned x1, unsigned y1, unsigned x2, unsigned y2);
+    int getRoi(unsigned stream, bool& enable, unsigned& x1, unsigned& y1, unsigned& x2, unsigned& y2);
+    static int checkRoi(unsigned x1, unsigned y1, unsigned x2, unsigned y2);
 
     int setStereoCalibData(unsigned char* data, int len = calib::kStereoCalibBytes);
     int getStereoCalibData(unsigned char* data, int len = calib::kStereoCalibBytes);
