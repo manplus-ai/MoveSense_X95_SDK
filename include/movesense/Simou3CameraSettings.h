@@ -4,6 +4,7 @@
 #pragma once
 #include "Simou3CalibLayout.h"
 #include "Simou3Net.h"
+#include "Simou3Types.h"
 
 #include <cstdint>
 #include <string>
@@ -65,6 +66,15 @@ public:
     int getDOEPower(unsigned& power);
     int setRoi(unsigned stream, bool enable, unsigned x1, unsigned y1, unsigned x2, unsigned y2);
     int getRoi(unsigned stream, bool& enable, unsigned& x1, unsigned& y1, unsigned& x2, unsigned& y2);
+
+    int setColorAdjust(IspChannel channel, bool enable, unsigned brightness, unsigned contrast, unsigned saturation, unsigned hue);
+    int getColorAdjust(IspChannel channel, bool& enable, unsigned& brightness, unsigned& contrast, unsigned& saturation, unsigned& hue);
+    int setSharpen(IspChannel channel, bool enable, unsigned strength);
+    int getSharpen(IspChannel channel, bool& enable, unsigned& strength, unsigned& textureStrength, unsigned& edgeStrength);
+    int setWhiteBalanceAuto(IspChannel channel, bool autoMode);
+    int getWhiteBalanceAuto(IspChannel channel, bool& autoMode);
+    int setWhiteBalanceGain(IspChannel channel, float rGain, float gGain, float bGain);
+    int getWhiteBalanceGain(IspChannel channel, float& rGain, float& gGain, float& bGain);
     static int checkRoi(unsigned x1, unsigned y1, unsigned x2, unsigned y2);
 
     int setStereoCalibData(unsigned char* data, int len = calib::kStereoCalibBytes);

@@ -80,6 +80,26 @@ public:
     int setRoi(RoiStream stream, bool enable, unsigned x1, unsigned y1, unsigned x2, unsigned y2);
     int getRoi(RoiStream stream, bool& enable, unsigned& x1, unsigned& y1, unsigned& x2, unsigned& y2);
 
+    int setStereoColorAdjust(bool enable, unsigned brightness, unsigned contrast, unsigned saturation, unsigned hue);
+    int getStereoColorAdjust(bool& enable, unsigned& brightness, unsigned& contrast, unsigned& saturation, unsigned& hue);
+    int setRGBColorAdjust(bool enable, unsigned brightness, unsigned contrast, unsigned saturation, unsigned hue);
+    int getRGBColorAdjust(bool& enable, unsigned& brightness, unsigned& contrast, unsigned& saturation, unsigned& hue);
+
+    int setStereoSharpen(bool enable, unsigned strength);
+    int getStereoSharpen(bool& enable, unsigned& strength, unsigned& textureStrength, unsigned& edgeStrength);
+    int setRGBSharpen(bool enable, unsigned strength);
+    int getRGBSharpen(bool& enable, unsigned& strength, unsigned& textureStrength, unsigned& edgeStrength);
+
+    int setStereoAutoWb(bool autoMode);
+    int getStereoAutoWb(bool& autoMode);
+    int setRGBAutoWb(bool autoMode);
+    int getRGBAutoWb(bool& autoMode);
+
+    int setStereoWbGain(float rGain, float gGain, float bGain);
+    int getStereoWbGain(float& rGain, float& gGain, float& bGain);
+    int setRGBWbGain(float rGain, float gGain, float bGain);
+    int getRGBWbGain(float& rGain, float& gGain, float& bGain);
+
     int setStereoCalibData(unsigned char* data, int len = calib::kStereoCalibBytes);
     int getStereoCalibData(unsigned char* data, int len = calib::kStereoCalibBytes);
 

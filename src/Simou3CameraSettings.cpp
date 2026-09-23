@@ -3,12 +3,11 @@
 
 #include "movesense/Simou3CameraSettings.h"
 
-#include <cstring>
-
 #include "Simou3Internal.h"
 #include "Simou3Log.h"
 #include "crc.h"
 
+#include <cstring>
 #include <fstream>
 
 #define CMD_TYPE_GET_FIRMWARE_VERSION 0x0006
@@ -89,12 +88,49 @@
 #define CMD_TYPE_SET_ROI 0x2071
 #define CMD_TYPE_GET_ROI 0x2072
 
+#define CMD_TYPE_SET_COLOR_ADJUST_STEREO 0x2031
+#define CMD_TYPE_GET_COLOR_ADJUST_STEREO 0x2032
+#define CMD_TYPE_SET_COLOR_ADJUST_RGB 0x2051
+#define CMD_TYPE_GET_COLOR_ADJUST_RGB 0x2052
+#define CMD_TYPE_SET_SHARPEN_STEREO 0x2033
+#define CMD_TYPE_GET_SHARPEN_STEREO 0x2034
+#define CMD_TYPE_SET_SHARPEN_RGB 0x2053
+#define CMD_TYPE_GET_SHARPEN_RGB 0x2054
+#define CMD_TYPE_SET_WB_AUTO_STEREO 0x2035
+#define CMD_TYPE_GET_WB_AUTO_STEREO 0x2036
+#define CMD_TYPE_SET_WB_AUTO_RGB 0x2055
+#define CMD_TYPE_GET_WB_AUTO_RGB 0x2056
+#define CMD_TYPE_SET_WB_GAIN_STEREO 0x2037
+#define CMD_TYPE_GET_WB_GAIN_STEREO 0x2038
+#define CMD_TYPE_SET_WB_GAIN_RGB 0x2057
+#define CMD_TYPE_GET_WB_GAIN_RGB 0x2058
+
 #define CMD_TYPE_SET_DOE_POWER 0x5001
 #define CMD_TYPE_GET_DOE_POWER 0x5002
 
 #define CMD_TYPE_SET_REGISTRATION_SWITCH 0x7002
 
 namespace movesense {
+
+namespace {
+
+unsigned clampIspLevel(unsigned v)
+{
+    return (v > kIspLevelMax) ? kIspLevelMax : v;
+}
+
+float clampIspWbGain(float v)
+{
+    if (!(v > kIspWbGainMin)) {
+        return kIspWbGainMin;
+    }
+    if (v > kIspWbGainMax) {
+        return kIspWbGainMax;
+    }
+    return v;
+}
+
+} // namespace
 
 Simou3CameraSettings::Simou3CameraSettings(std::string ip, int port) : mIP(ip), mPort(port) {}
 
@@ -705,6 +741,150 @@ int Simou3CameraSettings::getRoi(unsigned stream, bool& enable, unsigned& x1, un
     y1 = rep[3];
     x2 = rep[4];
     y2 = rep[5];
+    return ret;
+}
+
+int Simou3CameraSettings::getColorAdjust(
+    IspChannel channel, bool& enable, unsigned& brightness, unsigned& contrast, unsigned& saturation, unsigned& hue)
+{
+    uint32_t req[5] = { 0, 0, 0, 0, 0 };
+    uint32_t rep[5] = { 0, 0, 0, 0, 0 };
+    unsigned short cmdType = (channel == IspChannel::Rgb) ? CMD_TYPE_GET_COLOR_ADJUST_RGB : CMD_TYPE_GET_COLOR_ADJUST_STEREO;
+    unsigned short cmdLen = sizeof(req);
+    int ret = sendCmd(cmdType, cmdLen, req);
+    if (ret <= 0) {
+        return ret;
+    }
+    ret = mSock.recvBlock(rep, cmdLen);
+    if (ret <= 0) {
+        return ret;
+    }
+    enable = (rep[0] != 0);
+    brightness = rep[1];
+    contrast = rep[2];
+    saturation = rep[3];
+    hue = rep[4];
+    return ret;
+}
+
+int Simou3CameraSettings::getSharpen(IspChannel channel, bool& enable, unsigned& strength, unsigned& textureStrength, unsigned& edgeStrength)
+{
+    uint32_t req[4] = { 0, 0, 0, 0 };
+    uint32_t rep[4] = { 0, 0, 0, 0 };
+    unsigned short cmdType = (channel == IspChannel::Rgb) ? CMD_TYPE_GET_SHARPEN_RGB : CMD_TYPE_GET_SHARPEN_STEREO;
+    unsigned short cmdLen = sizeof(req);
+    int ret = sendCmd(cmdType, cmdLen, req);
+    if (ret <= 0) {
+        return ret;
+    }
+    ret = mSock.recvBlock(rep, cmdLen);
+    if (ret <= 0) {
+        return ret;
+    }
+    enable = (rep[0] != 0);
+    strength = rep[1];
+    textureStrength = rep[2];
+    edgeStrength = rep[3];
+    return ret;
+}
+
+int Simou3CameraSettings::getWhiteBalanceAuto(IspChannel channel, bool& autoMode)
+{
+    uint32_t req[1] = { 0 };
+    uint32_t rep[1] = { 0 };
+    unsigned short cmdType = (channel == IspChannel::Rgb) ? CMD_TYPE_GET_WB_AUTO_RGB : CMD_TYPE_GET_WB_AUTO_STEREO;
+    unsigned short cmdLen = sizeof(req);
+    int ret = sendCmd(cmdType, cmdLen, req);
+    if (ret <= 0) {
+        return ret;
+    }
+    ret = mSock.recvBlock(rep, cmdLen);
+    if (ret <= 0) {
+        return ret;
+    }
+    autoMode = (rep[0] != 0);
+    return ret;
+}
+
+int Simou3CameraSettings::getWhiteBalanceGain(IspChannel channel, float& rGain, float& gGain, float& bGain)
+{
+    uint32_t req[3] = { 0, 0, 0 };
+    uint32_t rep[3] = { 0, 0, 0 };
+    unsigned short cmdType = (channel == IspChannel::Rgb) ? CMD_TYPE_GET_WB_GAIN_RGB : CMD_TYPE_GET_WB_GAIN_STEREO;
+    unsigned short cmdLen = sizeof(req);
+    int ret = sendCmd(cmdType, cmdLen, req);
+    if (ret <= 0) {
+        return ret;
+    }
+    ret = mSock.recvBlock(rep, cmdLen);
+    if (ret <= 0) {
+        return ret;
+    }
+    memcpy(&rGain, &rep[0], sizeof(float));
+    memcpy(&gGain, &rep[1], sizeof(float));
+    memcpy(&bGain, &rep[2], sizeof(float));
+    return ret;
+}
+
+int Simou3CameraSettings::setColorAdjust(IspChannel channel, bool enable, unsigned brightness, unsigned contrast, unsigned saturation, unsigned hue)
+{
+    uint32_t req[5] = { enable ? 1u : 0u, clampIspLevel(brightness), clampIspLevel(contrast), clampIspLevel(saturation), clampIspLevel(hue) };
+    uint32_t rep[5] = { 0, 0, 0, 0, 0 };
+    unsigned short cmdType = (channel == IspChannel::Rgb) ? CMD_TYPE_SET_COLOR_ADJUST_RGB : CMD_TYPE_SET_COLOR_ADJUST_STEREO;
+    unsigned short cmdLen = sizeof(req);
+    int ret = sendCmd(cmdType, cmdLen, req);
+    if (ret <= 0) {
+        return ret;
+    }
+    ret = mSock.recvBlock(rep, cmdLen);
+    return ret;
+}
+
+int Simou3CameraSettings::setSharpen(IspChannel channel, bool enable, unsigned strength)
+{
+    uint32_t req[4] = { enable ? 1u : 0u, clampIspLevel(strength), 0, 0 };
+    uint32_t rep[4] = { 0, 0, 0, 0 };
+    unsigned short cmdType = (channel == IspChannel::Rgb) ? CMD_TYPE_SET_SHARPEN_RGB : CMD_TYPE_SET_SHARPEN_STEREO;
+    unsigned short cmdLen = sizeof(req);
+    int ret = sendCmd(cmdType, cmdLen, req);
+    if (ret <= 0) {
+        return ret;
+    }
+    ret = mSock.recvBlock(rep, cmdLen);
+    return ret;
+}
+
+int Simou3CameraSettings::setWhiteBalanceAuto(IspChannel channel, bool autoMode)
+{
+    uint32_t req[1] = { autoMode ? 1u : 0u };
+    uint32_t rep[1] = { 0 };
+    unsigned short cmdType = (channel == IspChannel::Rgb) ? CMD_TYPE_SET_WB_AUTO_RGB : CMD_TYPE_SET_WB_AUTO_STEREO;
+    unsigned short cmdLen = sizeof(req);
+    int ret = sendCmd(cmdType, cmdLen, req);
+    if (ret <= 0) {
+        return ret;
+    }
+    ret = mSock.recvBlock(rep, cmdLen);
+    return ret;
+}
+
+int Simou3CameraSettings::setWhiteBalanceGain(IspChannel channel, float rGain, float gGain, float bGain)
+{
+    uint32_t req[3] = { 0, 0, 0 };
+    uint32_t rep[3] = { 0, 0, 0 };
+    const float r = clampIspWbGain(rGain);
+    const float g = clampIspWbGain(gGain);
+    const float b = clampIspWbGain(bGain);
+    memcpy(&req[0], &r, sizeof(float));
+    memcpy(&req[1], &g, sizeof(float));
+    memcpy(&req[2], &b, sizeof(float));
+    unsigned short cmdType = (channel == IspChannel::Rgb) ? CMD_TYPE_SET_WB_GAIN_RGB : CMD_TYPE_SET_WB_GAIN_STEREO;
+    unsigned short cmdLen = sizeof(req);
+    int ret = sendCmd(cmdType, cmdLen, req);
+    if (ret <= 0) {
+        return ret;
+    }
+    ret = mSock.recvBlock(rep, cmdLen);
     return ret;
 }
 
