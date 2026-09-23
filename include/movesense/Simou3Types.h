@@ -46,6 +46,13 @@ struct NetworkInterface {
 enum class PFormat : uint8_t { PF_Y8 = 0, PF_NV21 = 1, PF_DEPTH16 = 2 };
 enum class RoiStream : uint32_t { LeftRaw = 0, RightRaw = 1, RgbRaw = 2, LeftRect = 3, RightRect = 4, RgbRect = 5 };
 
+enum class IspChannel : uint32_t { Stereo = 0, Rgb = 1 };
+
+constexpr unsigned kIspLevelMin = 0;
+constexpr unsigned kIspLevelMax = 100;
+constexpr float kIspWbGainMin = 0.0f;
+constexpr float kIspWbGainMax = 4095.0f / 256.0f;
+
 #pragma pack(push, 1)
 struct DetectionBox {
     float x1, y1, x2, y2;

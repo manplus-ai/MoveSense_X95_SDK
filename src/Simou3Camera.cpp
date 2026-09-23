@@ -236,6 +236,86 @@ int Simou3Camera::getRoi(RoiStream stream, bool& enable, unsigned& x1, unsigned&
     return mSimou3CameraSettings.getRoi(static_cast<unsigned>(stream), enable, x1, y1, x2, y2);
 }
 
+int Simou3Camera::getStereoColorAdjust(bool& enable, unsigned& brightness, unsigned& contrast, unsigned& saturation, unsigned& hue)
+{
+    return mSimou3CameraSettings.getColorAdjust(IspChannel::Stereo, enable, brightness, contrast, saturation, hue);
+}
+
+int Simou3Camera::getRGBColorAdjust(bool& enable, unsigned& brightness, unsigned& contrast, unsigned& saturation, unsigned& hue)
+{
+    return mSimou3CameraSettings.getColorAdjust(IspChannel::Rgb, enable, brightness, contrast, saturation, hue);
+}
+
+int Simou3Camera::getStereoSharpen(bool& enable, unsigned& strength, unsigned& textureStrength, unsigned& edgeStrength)
+{
+    return mSimou3CameraSettings.getSharpen(IspChannel::Stereo, enable, strength, textureStrength, edgeStrength);
+}
+
+int Simou3Camera::getRGBSharpen(bool& enable, unsigned& strength, unsigned& textureStrength, unsigned& edgeStrength)
+{
+    return mSimou3CameraSettings.getSharpen(IspChannel::Rgb, enable, strength, textureStrength, edgeStrength);
+}
+
+int Simou3Camera::getStereoAutoWb(bool& autoMode)
+{
+    return mSimou3CameraSettings.getWhiteBalanceAuto(IspChannel::Stereo, autoMode);
+}
+
+int Simou3Camera::getRGBAutoWb(bool& autoMode)
+{
+    return mSimou3CameraSettings.getWhiteBalanceAuto(IspChannel::Rgb, autoMode);
+}
+
+int Simou3Camera::getStereoWbGain(float& rGain, float& gGain, float& bGain)
+{
+    return mSimou3CameraSettings.getWhiteBalanceGain(IspChannel::Stereo, rGain, gGain, bGain);
+}
+
+int Simou3Camera::getRGBWbGain(float& rGain, float& gGain, float& bGain)
+{
+    return mSimou3CameraSettings.getWhiteBalanceGain(IspChannel::Rgb, rGain, gGain, bGain);
+}
+
+int Simou3Camera::setStereoColorAdjust(bool enable, unsigned brightness, unsigned contrast, unsigned saturation, unsigned hue)
+{
+    return mSimou3CameraSettings.setColorAdjust(IspChannel::Stereo, enable, brightness, contrast, saturation, hue);
+}
+
+int Simou3Camera::setRGBColorAdjust(bool enable, unsigned brightness, unsigned contrast, unsigned saturation, unsigned hue)
+{
+    return mSimou3CameraSettings.setColorAdjust(IspChannel::Rgb, enable, brightness, contrast, saturation, hue);
+}
+
+int Simou3Camera::setStereoSharpen(bool enable, unsigned strength)
+{
+    return mSimou3CameraSettings.setSharpen(IspChannel::Stereo, enable, strength);
+}
+
+int Simou3Camera::setRGBSharpen(bool enable, unsigned strength)
+{
+    return mSimou3CameraSettings.setSharpen(IspChannel::Rgb, enable, strength);
+}
+
+int Simou3Camera::setStereoAutoWb(bool autoMode)
+{
+    return mSimou3CameraSettings.setWhiteBalanceAuto(IspChannel::Stereo, autoMode);
+}
+
+int Simou3Camera::setRGBAutoWb(bool autoMode)
+{
+    return mSimou3CameraSettings.setWhiteBalanceAuto(IspChannel::Rgb, autoMode);
+}
+
+int Simou3Camera::setStereoWbGain(float rGain, float gGain, float bGain)
+{
+    return mSimou3CameraSettings.setWhiteBalanceGain(IspChannel::Stereo, rGain, gGain, bGain);
+}
+
+int Simou3Camera::setRGBWbGain(float rGain, float gGain, float bGain)
+{
+    return mSimou3CameraSettings.setWhiteBalanceGain(IspChannel::Rgb, rGain, gGain, bGain);
+}
+
 int Simou3Camera::setStereoCalibData(unsigned char* data, int len)
 {
     return mSimou3CameraSettings.setStereoCalibData(data, len);
