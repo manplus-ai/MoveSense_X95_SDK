@@ -149,13 +149,38 @@ int Simou3CameraSettings::disconnectCamera()
 
 int Simou3CameraSettings::setTriggerMode(int mode)
 {
-    (void)mode;
-    return SIMOU3_ERR_NOT_SUPPORTED;
+    if (mode != kTriggerModeAuto && mode != kTriggerModeSoft) {
+        return SIMOU3_ERR_TRIGGER_MODE_INVALID;
+    }
+
+    unsigned short cmdType = CMD_TYPE_SET_TRIGGER_MODE;
+    unsigned short cmdLen = sizeof(int);
+    int ret = sendCmd(cmdType, cmdLen, &mode);
+    if (ret <= 0) {
+        return ret;
+    }
+
+    int current = -1;
+    ret = mSock.recvBlock(&current, cmdLen);
+    if (ret <= 0) {
+        return ret;
+    }
+    if (current != mode) {
+        return SIMOU3_ERR_TRIGGER_REJECTED;
+    }
+    return ret;
 }
 int Simou3CameraSettings::getTriggerMode(int& mode)
 {
-    (void)mode;
-    return SIMOU3_ERR_NOT_SUPPORTED;
+    unsigned short cmdType = CMD_TYPE_GET_TRIGGER_MODE;
+    unsigned short cmdLen = sizeof(int);
+    int ret = sendGetCmd(cmdType, cmdLen);
+    if (ret <= 0) {
+        return ret;
+    }
+
+    ret = mSock.recvBlock(&mode, cmdLen);
+    return ret;
 }
 
 int Simou3CameraSettings::getCameraType(int& type)
@@ -182,10 +207,24 @@ int Simou3CameraSettings::getTriggerOut(int& out)
     return SIMOU3_ERR_NOT_SUPPORTED;
 }
 
-int Simou3CameraSettings::triggerFrame(int frameCnt)
+int Simou3CameraSettings::triggerFrame()
 {
-    (void)frameCnt;
-    return SIMOU3_ERR_NOT_SUPPORTED;
+    unsigned short cmdType = CMD_TYPE_TRIGGER_FRAME;
+    unsigned short cmdLen = sizeof(int);
+    int ret = sendGetCmd(cmdType, cmdLen);
+    if (ret <= 0) {
+        return ret;
+    }
+
+    int fired = 0;
+    ret = mSock.recvBlock(&fired, cmdLen);
+    if (ret <= 0) {
+        return ret;
+    }
+    if (fired != 1) {
+        return SIMOU3_ERR_TRIGGER_REJECTED;
+    }
+    return ret;
 }
 
 int Simou3CameraSettings::getFirmwareVersion(unsigned& firmware)

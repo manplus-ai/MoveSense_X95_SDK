@@ -234,7 +234,7 @@ bool CameraSession::Open(const ModeSpec& mode)
 
     ApplyDownsample(mode);
     m_cam->setFrameRate(DEFAULT_FPS);
-    m_cam->setTriggerMode(1);
+    m_cam->setTriggerMode(kTriggerModeAuto);
     if (!ApplyRoi(mode)) {
         return false;
     }

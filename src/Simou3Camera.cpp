@@ -86,9 +86,9 @@ int Simou3Camera::getTriggerOut(int& out)
 {
     return mSimou3CameraSettings.getTriggerOut(out);
 }
-int Simou3Camera::triggerFrame(int frameCnt)
+int Simou3Camera::triggerFrame()
 {
-    return mSimou3CameraSettings.triggerFrame(frameCnt);
+    return mSimou3CameraSettings.triggerFrame();
 }
 int Simou3Camera::getFirmwareVersion(unsigned& firmware)
 {

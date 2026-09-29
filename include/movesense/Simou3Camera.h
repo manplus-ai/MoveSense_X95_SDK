@@ -36,7 +36,7 @@ public:
     int getTriggerMode(int& mode);
     int setTriggerOut(int out);
     int getTriggerOut(int& out);
-    int triggerFrame(int frameCnt);
+    int triggerFrame();
 
     int getFirmwareVersion(unsigned& firmware);
     int getCameraType(int& type);
