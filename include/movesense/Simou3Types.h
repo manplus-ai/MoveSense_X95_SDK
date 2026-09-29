@@ -20,6 +20,8 @@ typedef int socket_t;
 #define SIMOU3_ERR_NOT_SUPPORTED (-100)
 #define SIMOU3_ERR_ROI_INVALID (-101)
 #define SIMOU3_ERR_ROI_REJECTED (-102)
+#define SIMOU3_ERR_TRIGGER_MODE_INVALID (-103)
+#define SIMOU3_ERR_TRIGGER_REJECTED (-104)
 
 namespace movesense {
 
@@ -52,6 +54,9 @@ constexpr unsigned kIspLevelMin = 0;
 constexpr unsigned kIspLevelMax = 100;
 constexpr float kIspWbGainMin = 0.0f;
 constexpr float kIspWbGainMax = 4095.0f / 256.0f;
+
+constexpr int kTriggerModeAuto = 0;
+constexpr int kTriggerModeSoft = 1;
 
 #pragma pack(push, 1)
 struct DetectionBox {

@@ -15,6 +15,8 @@ Unless stated otherwise, every interface returning `int` follows the same conven
 | `-100` `SIMOU3_ERR_NOT_SUPPORTED` | Interface not supported yet |
 | `-101` `SIMOU3_ERR_ROI_INVALID` | Invalid ROI arguments (rejected by local SDK validation) |
 | `-102` `SIMOU3_ERR_ROI_REJECTED` | ROI rejected by the camera (echoed value differs from the request) |
+| `-103` `SIMOU3_ERR_TRIGGER_MODE_INVALID` | Invalid trigger mode (rejected by local SDK validation) |
+| `-104` `SIMOU3_ERR_TRIGGER_REJECTED` | Trigger request rejected by the camera |
 
 Test for success with `ret > 0`, not with `ret == 0`.
 
@@ -57,11 +59,17 @@ On a **passive P-type unit**, `setRGB*` / `getRGB*` return not-supported and nev
 
 | Interface | Function | Parameters | Returns |
 | --- | --- | --- | --- |
-| `setTriggerMode(int mode)` | **Not supported yet** | — | `-100` |
-| `getTriggerMode(int& mode)` | **Not supported yet** | — | `-100` |
-| `setTriggerOut(int out)` | **Not supported yet** | — | `-100` |
-| `getTriggerOut(int& out)` | **Not supported yet** | — | `-100` |
-| `triggerFrame(int frameCnt)` | **Not supported yet** | — | `-100` |
+| `setTriggerMode(int mode)` | Set the trigger mode | `mode` `kTriggerModeAuto` (`0`) auto trigger: the camera streams continuously at the `setFrameRate` rate; `kTriggerModeSoft` (`1`) soft trigger: one frame per `triggerFrame()` call | `>0` success / `-103` invalid value / `-104` rejected by the camera |
+| `getTriggerMode(int& mode)` | Read the current trigger mode | `mode` output, same values as above | `>0` success |
+| `triggerFrame()` | Soft-trigger one frame | none | `>0` success / `-104` rejected by the camera |
+
+> The trigger mode lasts only for the current camera run and falls back to auto trigger after a camera restart. It is **not** reset on reconnect, so set it explicitly before `openCamera` on every connection.
+> Switching the trigger mode discards frames the camera has not sent yet.
+>
+> In soft trigger mode the camera produces no frames on its own: after each successful `triggerFrame()`, fetch the resulting frame with `getFrame` (`frameCnt()` advances by 1).
+> Two `triggerFrame()` calls must be at least one frame period apart, i.e. `1000 / fps` ms (40 ms at 25 fps), so in soft trigger mode `setFrameRate` sets the highest allowed trigger rate.
+>
+> `triggerFrame()` returns `-104` when: the camera is not in soft trigger mode; less than one frame period has passed since the last successful trigger; or the camera is not streaming yet (before the first `openCamera`).
 
 ## 4. Device information
 

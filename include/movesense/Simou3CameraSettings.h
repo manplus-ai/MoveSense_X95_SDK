@@ -24,7 +24,7 @@ public:
     int setTriggerOut(int out);
     int getTriggerOut(int& out);
 
-    int triggerFrame(int frameCnt);
+    int triggerFrame();
     int getFirmwareVersion(unsigned& firmware);
     int getCameraType(int& type);
     int updateFirmware(std::string firmwareName);
