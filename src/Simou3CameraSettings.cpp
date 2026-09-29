@@ -149,7 +149,7 @@ int Simou3CameraSettings::disconnectCamera()
 
 int Simou3CameraSettings::setTriggerMode(int mode)
 {
-    if (mode != kTriggerModeAuto && mode != kTriggerModeSoft) {
+    if (mode != kTriggerModeAuto && mode != kTriggerModeSoft && mode != kTriggerModeExternal) {
         return SIMOU3_ERR_TRIGGER_MODE_INVALID;
     }
 

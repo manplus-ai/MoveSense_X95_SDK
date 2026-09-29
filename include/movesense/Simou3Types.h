@@ -57,6 +57,7 @@ constexpr float kIspWbGainMax = 4095.0f / 256.0f;
 
 constexpr int kTriggerModeAuto = 0;
 constexpr int kTriggerModeSoft = 1;
+constexpr int kTriggerModeExternal = 2;
 
 #pragma pack(push, 1)
 struct DetectionBox {

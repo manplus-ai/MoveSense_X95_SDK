@@ -59,7 +59,7 @@ On a **passive P-type unit**, `setRGB*` / `getRGB*` return not-supported and nev
 
 | Interface | Function | Parameters | Returns |
 | --- | --- | --- | --- |
-| `setTriggerMode(int mode)` | Set the trigger mode | `mode` `kTriggerModeAuto` (`0`) auto trigger: the camera streams continuously at the `setFrameRate` rate; `kTriggerModeSoft` (`1`) soft trigger: one frame per `triggerFrame()` call | `>0` success / `-103` invalid value / `-104` rejected by the camera |
+| `setTriggerMode(int mode)` | Set the trigger mode | `mode` `kTriggerModeAuto` (`0`) auto trigger: the camera streams continuously at the `setFrameRate` rate; `kTriggerModeSoft` (`1`) soft trigger: one frame per `triggerFrame()` call; `kTriggerModeExternal` (`2`) external trigger: this camera outputs no trigger signal and captures on the master camera's trigger signal | `>0` success / `-103` invalid value / `-104` rejected by the camera |
 | `getTriggerMode(int& mode)` | Read the current trigger mode | `mode` output, same values as above | `>0` success |
 | `triggerFrame()` | Soft-trigger one frame | none | `>0` success / `-104` rejected by the camera |
 
@@ -70,6 +70,10 @@ On a **passive P-type unit**, `setRGB*` / `getRGB*` return not-supported and nev
 > Two `triggerFrame()` calls must be at least one frame period apart, i.e. `1000 / fps` ms (40 ms at 25 fps), so in soft trigger mode `setFrameRate` sets the highest allowed trigger rate.
 >
 > `triggerFrame()` returns `-104` when: the camera is not in soft trigger mode; less than one frame period has passed since the last successful trigger; or the camera is not streaming yet (before the first `openCamera`).
+>
+> Multi-camera sync: wire the cameras' trigger lines together, with one master and the others as slaves. Set the master to auto trigger (`0`) or soft trigger (`1`) and every slave to external trigger (`2`).
+> With the master in auto trigger, all cameras stream in sync at the master's frame rate; with the master in soft trigger, each successful `triggerFrame()` on the master makes every camera capture one frame at the same time.
+> Slaves must also call `setFrameRate` with the same frame rate as the master: the camera caps exposure time from the frame rate, so a slave set to a lower rate may expose longer than the master's trigger period and miss frames.
 
 ## 4. Device information
 
