@@ -90,15 +90,6 @@ int Simou3Camera::triggerFrame()
 {
     return mSimou3CameraSettings.triggerFrame();
 }
-int Simou3Camera::getFirmwareVersion(unsigned& firmware)
-{
-    return mSimou3CameraSettings.getFirmwareVersion(firmware);
-}
-int Simou3Camera::updateFirmware(std::string firmwareName)
-{
-    return mSimou3CameraSettings.updateFirmware(firmwareName);
-}
-
 int Simou3Camera::setStereoExposure(unsigned expus)
 {
     return mSimou3CameraSettings.setStereoExposure(expus);
@@ -368,39 +359,13 @@ int Simou3Camera::setRegistrationSwitch(bool onoff)
     return mSimou3CameraSettings.setRegistrationSwitch(onoff);
 }
 
-int Simou3Camera::setIPAddress(uint32_t ip, uint32_t mask, uint32_t gateway)
-{
-    return mSimou3CameraSettings.setIPAddress(ip, mask, gateway);
-}
+int Simou3Camera::SetNetworkConfig(const NetworkConfig& config) { return mSimou3CameraSettings.SetNetworkConfig(config); }
 
-int Simou3Camera::getIPAddress(uint32_t& ip, uint32_t& mask, uint32_t& gateway)
-{
-    return mSimou3CameraSettings.getIPAddress(ip, mask, gateway);
-}
-
-int Simou3Camera::setIPAddress(std::string ip, std::string mask, std::string gateway)
-{
-    return mSimou3CameraSettings.setIPAddress(ip, mask, gateway);
-}
-
-int Simou3Camera::getIPAddress(std::string& ip, std::string& mask, std::string& gateway)
-{
-    return mSimou3CameraSettings.getIPAddress(ip, mask, gateway);
-}
-
-int Simou3Camera::setMacAddress(uint8_t mac[6])
-{
-    return mSimou3CameraSettings.setMacAddress(mac);
-}
+int Simou3Camera::GetNetworkConfig(NetworkConfig& config) { return mSimou3CameraSettings.GetNetworkConfig(config); }
 
 int Simou3Camera::getMacAddress(uint8_t mac[6])
 {
     return mSimou3CameraSettings.getMacAddress(mac);
-}
-
-int Simou3Camera::setMacAddress(std::string mac)
-{
-    return mSimou3CameraSettings.setMacAddress(mac);
 }
 
 int Simou3Camera::getMacAddress(std::string& mac)
@@ -418,24 +383,9 @@ int Simou3Camera::setCameraSN(const std::string& sn)
     return mSimou3CameraSettings.setCameraSN(sn);
 }
 
-int Simou3Camera::getFPGAVersion(std::string& fpga)
-{
-    return mSimou3CameraSettings.getFPGAVersion(fpga);
-}
-
-int Simou3Camera::setFPGAVersion(const std::string& fpga)
-{
-    return mSimou3CameraSettings.setFPGAVersion(fpga);
-}
-
 int Simou3Camera::getHardwareVersion(std::string& hardware)
 {
     return mSimou3CameraSettings.getHardwareVersion(hardware);
-}
-
-int Simou3Camera::setHardwareVersion(const std::string& hardware)
-{
-    return mSimou3CameraSettings.setHardwareVersion(hardware);
 }
 
 int Simou3Camera::getProductModelVersion(std::string& product)
@@ -443,15 +393,11 @@ int Simou3Camera::getProductModelVersion(std::string& product)
     return mSimou3CameraSettings.getProductModelVersion(product);
 }
 
-int Simou3Camera::setProductModelVersion(const std::string& product)
-{
-    return mSimou3CameraSettings.setProductModelVersion(product);
-}
+int Simou3Camera::getAppVersion(std::string& version) { return mSimou3CameraSettings.getAppVersion(version); }
 
-int Simou3Camera::getAppVersion(std::string& version)
-{
-    return mSimou3CameraSettings.getAppVersion(version);
-}
+int Simou3Camera::GetKernelVersion(std::string& version) { return mSimou3CameraSettings.GetKernelVersion(version); }
+
+int Simou3Camera::GetCameraLibVersion(std::string& version) { return mSimou3CameraSettings.GetCameraLibVersion(version); }
 
 bool Simou3Camera::isCameraOnline(std::string ip)
 {

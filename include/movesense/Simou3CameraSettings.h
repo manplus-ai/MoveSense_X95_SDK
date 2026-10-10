@@ -25,9 +25,7 @@ public:
     int getTriggerOut(int& out);
 
     int triggerFrame();
-    int getFirmwareVersion(unsigned& firmware);
     int getCameraType(int& type);
-    int updateFirmware(std::string firmwareName);
 
     int setStereoExposure(unsigned expus);
     int getStereoExposure(unsigned& expus);
@@ -95,50 +93,25 @@ public:
 
     int setRegistrationSwitch(bool onoff);
 
-    int setIPAddress(uint32_t ip, uint32_t mask, uint32_t gateway);
-    int getIPAddress(uint32_t& ip, uint32_t& mask, uint32_t& gateway);
-
-    int setIPAddress(std::string ip, std::string mask, std::string gateway);
-    int getIPAddress(std::string& ip, std::string& mask, std::string& gateway);
-
-    int setMacAddress(uint8_t mac[6]);
+    int SetNetworkConfig(const NetworkConfig& config);
+    int GetNetworkConfig(NetworkConfig& config);
     int getMacAddress(uint8_t mac[6]);
-
-    int setMacAddress(std::string mac);
     int getMacAddress(std::string& mac);
-
-    int getAppVersion(uint8_t app[8]);
     int getAppVersion(std::string& app);
-
-    int setCameraSN(const uint8_t sn[16]);
     int setCameraSN(const std::string& sn);
-
-    int getCameraSN(uint8_t sn[16]);
     int getCameraSN(std::string& sn);
-
-    int setFPGAVersion(const uint8_t fpga[8]);
-    int setFPGAVersion(const std::string& fpga);
-
-    int getFPGAVersion(uint8_t fpga[8]);
-    int getFPGAVersion(std::string& fpga);
-
-    int setHardwareVersion(const uint8_t hardware[8]);
-    int setHardwareVersion(const std::string& hardware);
-
-    int getHardwareVersion(uint8_t hardware[8]);
     int getHardwareVersion(std::string& hardware);
-
-    int setProductModelVersion(const uint8_t product[16]);
-    int setProductModelVersion(const std::string& product);
-
-    int getProductModelVersion(uint8_t product[16]);
     int getProductModelVersion(std::string& product);
+    int GetKernelVersion(std::string& version);
+    int GetCameraLibVersion(std::string& version);
 
 public:
     std::string mIP;
     int mPort;
 
 private:
+    int ExchangeParameter(unsigned short command, unsigned char* data, unsigned short length);
+    int ReadTextParameter(unsigned short command, std::string& value);
     Simou3Net mSock;
     int sendCmd(unsigned short cmdType, unsigned short len, const void* data);
     int sendGetCmd(unsigned short cmdType, unsigned short len);

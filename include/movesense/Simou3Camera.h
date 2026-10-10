@@ -38,9 +38,7 @@ public:
     int getTriggerOut(int& out);
     int triggerFrame();
 
-    int getFirmwareVersion(unsigned& firmware);
     int getCameraType(int& type);
-    int updateFirmware(std::string firmwareName);
     int setStereoExposure(unsigned expus);
     int getStereoExposure(unsigned& expus);
 
@@ -118,27 +116,18 @@ public:
 
     int setRegistrationSwitch(bool onoff);
 
-    int setIPAddress(uint32_t ip, uint32_t mask, uint32_t gateway);
-    int getIPAddress(uint32_t& ip, uint32_t& mask, uint32_t& gateway);
-
-    int setIPAddress(std::string ip, std::string mask, std::string gateway);
-    int getIPAddress(std::string& ip, std::string& mask, std::string& gateway);
-
-    int setMacAddress(uint8_t mac[6]);
+    int SetNetworkConfig(const NetworkConfig& config);
+    int GetNetworkConfig(NetworkConfig& config);
     int getMacAddress(uint8_t mac[6]);
-
-    int setMacAddress(std::string mac);
     int getMacAddress(std::string& mac);
 
     int getAppVersion(std::string& version);
     int setCameraSN(const std::string& sn);
     int getCameraSN(std::string& sn);
-    int setFPGAVersion(const std::string& fpga);
-    int getFPGAVersion(std::string& fpga);
-    int setHardwareVersion(const std::string& hardware);
     int getHardwareVersion(std::string& hardware);
-    int setProductModelVersion(const std::string& product);
     int getProductModelVersion(std::string& product);
+    int GetKernelVersion(std::string& version);
+    int GetCameraLibVersion(std::string& version);
 
     bool isCameraOnline(std::string ip);
 

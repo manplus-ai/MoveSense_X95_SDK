@@ -22,8 +22,19 @@ typedef int socket_t;
 #define SIMOU3_ERR_ROI_REJECTED (-102)
 #define SIMOU3_ERR_TRIGGER_MODE_INVALID (-103)
 #define SIMOU3_ERR_TRIGGER_REJECTED (-104)
+#define SIMOU3_ERR_CONFIG_INVALID (-105)
+#define SIMOU3_ERR_STORAGE_FAILED (-106)
+#define SIMOU3_ERR_INFO_UNAVAILABLE (-107)
+#define SIMOU3_ERR_CONFIG_BUSY (-108)
+#define SIMOU3_ERR_CONFIG_APPLY_FAILED (-109)
 
 namespace movesense {
+
+struct NetworkConfig {
+    std::string ip;
+    std::string netmask;
+    std::string gateway;
+};
 
 struct CameraInfo {
     std::string ip;

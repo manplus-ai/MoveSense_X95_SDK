@@ -5,34 +5,22 @@
 
 #include "Simou3Internal.h"
 #include "Simou3Log.h"
-#include "crc.h"
-
 #include <cstring>
-#include <fstream>
 
-#define CMD_TYPE_GET_FIRMWARE_VERSION 0x0006
 #define CMD_TYPE_GET_CAMERA_TYPE 0x0019
 
 #define CMD_TYPE_SET_IP 0x0009
 #define CMD_TYPE_GET_IP 0x000A
 
-#define CMD_TYPE_SET_MAC 0x000B
 #define CMD_TYPE_GET_MAC 0x000C
 
 #define CMD_TYPE_GET_APP_VERSION 0x0010
 
 #define CMD_TYPE_SET_CAMERA_SN 0x0011
 #define CMD_TYPE_GET_CAMERA_SN 0x0012
-#define CMD_TYPE_SET_FPGA_VERSION 0x0013
 #define CMD_TYPE_GET_FPGA_VERSION 0x0014
-#define CMD_TYPE_SET_HARDWARE_VERSION 0x0015
 #define CMD_TYPE_GET_HARDWARE_VERSION 0x0016
-#define CMD_TYPE_SET_PRODUCT_MODEL_VERSION 0x0017
 #define CMD_TYPE_GET_PRODUCT_MODEL_VERSION 0x0018
-
-#define CMD_TYPE_UPDATE_HEADER 0x1000
-#define CMD_TYPE_UPDATE_ERASE 0x1001
-#define CMD_TYPE_UPDATE_DATA 0x1002
 
 #define CMD_TYPE_AE_SWITCH_STEREO 0x2021
 #define CMD_TYPE_AE_DESIRED_BIN_STEREO 0x2022
@@ -225,125 +213,6 @@ int Simou3CameraSettings::triggerFrame()
         return SIMOU3_ERR_TRIGGER_REJECTED;
     }
     return ret;
-}
-
-int Simou3CameraSettings::getFirmwareVersion(unsigned& firmware)
-{
-    return SIMOU3_ERR_NOT_SUPPORTED;
-    unsigned short cmdType = CMD_TYPE_GET_FIRMWARE_VERSION;
-    unsigned short cmdLen = sizeof(unsigned);
-
-    int ret = sendGetCmd(cmdType, cmdLen);
-    if (ret <= 0) {
-        return ret;
-    }
-
-    ret = mSock.recvBlock(&firmware, cmdLen);
-    return ret;
-}
-
-int Simou3CameraSettings::updateFirmware(std::string firmwareName)
-{
-    return SIMOU3_ERR_NOT_SUPPORTED;
-    std::ifstream inf_crc(firmwareName, std::ios::binary);
-    if (!inf_crc.is_open()) {
-        simou3_log("firmware file open failed.");
-        return -1;
-    }
-    inf_crc.seekg(0, std::ios::end);
-    std::streamoff fileLen = inf_crc.tellg();
-    inf_crc.seekg(0, std::ios::beg);
-    if (fileLen <= 0) {
-        simou3_log("firmware file is empty.");
-        return -1;
-    }
-    const std::streamoff MAX_FIRMWARE_BYTES = 64 * 1024 * 1024;
-    if (fileLen > MAX_FIRMWARE_BYTES) {
-        simou3_log("firmware file too large: " + std::to_string(static_cast<long long>(fileLen)));
-        return -1;
-    }
-    int rawLen = static_cast<int>(fileLen);
-    simou3_log("file len is " + std::to_string(rawLen));
-
-    int updateLen = (rawLen + 255) / 256 * 256;
-    std::vector<unsigned char> buffV(updateLen, 0xFF);
-    unsigned char* buff = buffV.data();
-    inf_crc.read(reinterpret_cast<char*>(buff), rawLen);
-    std::streamsize gotLen = inf_crc.gcount();
-    inf_crc.close();
-    if (gotLen != rawLen) {
-        simou3_log("firmware read incomplete: " + std::to_string(static_cast<long long>(gotLen)) + "/" + std::to_string(rawLen));
-        return -1;
-    }
-
-    CrcCtx crcCtx;
-    crc_init(&crcCtx);
-    uint32_t crc = 0;
-    for (int i = 0; i < updateLen / 256; i++) {
-        crc = crc_add_buffer(&crcCtx, &buff[256 * i], 256);
-    }
-    simou3_log("file crc is " + std::to_string(crc));
-
-    unsigned short cmdType = CMD_TYPE_UPDATE_HEADER;
-    unsigned short cmdLen = 8;
-    unsigned char updateHeader[8];
-    memcpy(updateHeader, &updateLen, sizeof(unsigned));
-    memcpy(updateHeader + 4, &crc, sizeof(unsigned));
-
-    int ret = sendCmd(cmdType, cmdLen, &updateHeader);
-    if (ret <= 0) {
-        return ret;
-    }
-
-    {
-        unsigned short cmdType = CMD_TYPE_UPDATE_ERASE;
-        unsigned short cmdLen = 1;
-        unsigned char cmdData[1] = { 0 };
-        int ret = sendCmd(cmdType, cmdLen, cmdData);
-        if (ret <= 0) {
-            return -1;
-        }
-        ret = mSock.recvBlock(cmdData, 1);
-        if (ret <= 0) {
-            return -1;
-        }
-        if (cmdData[0] > 0) {
-            simou3_log("erase done");
-        }
-    }
-    {
-        simou3_log("data transfer command");
-        unsigned short cmdType = CMD_TYPE_UPDATE_DATA;
-        unsigned short cmdLen = 1;
-        unsigned char cmdData[1] = { 0 };
-        int ret = sendCmd(cmdType, cmdLen, cmdData);
-        if (ret <= 0) {
-            return -1;
-        }
-
-        simou3_log("data transfer start");
-        for (int i = 0; i < updateLen / 256; i++) {
-            int ret = mSock.sendBlock(&(buff[256 * i]), 256);
-            if (ret <= 0) {
-                return -1;
-            }
-        }
-        simou3_log("data transfer end");
-        {
-            int ret = mSock.recvBlock(cmdData, cmdLen);
-            if (ret <= 0) {
-                return -1;
-            }
-            if (cmdData[0] > 0) {
-                simou3_log("update success.");
-            } else {
-                simou3_log("update failed.");
-                return -1;
-            }
-        }
-    }
-
-    return 1;
 }
 
 int Simou3CameraSettings::setStereoExposure(unsigned expus)
@@ -1064,226 +933,132 @@ int Simou3CameraSettings::setChunkSize(int bytes)
     return ret;
 }
 
-int Simou3CameraSettings::getAppVersion(uint8_t app[8])
+int Simou3CameraSettings::ExchangeParameter(unsigned short command, unsigned char* data, unsigned short length)
 {
-    unsigned short cmdType = CMD_TYPE_GET_APP_VERSION;
-    unsigned short cmdLen = 8;
-    int ret = sendGetCmd(cmdType, cmdLen);
-    if (ret <= 0) {
-        return ret;
+    int result = sendCmd(command, length, data);
+    if (result != length + 7) {
+        return result <= 0 ? result : -1;
     }
-    ret = mSock.recvBlock(app, 8);
-    return ret;
+    result = mSock.recvBlock(data, length);
+    if (result != length) {
+        return result <= 0 ? result : -1;
+    }
+    int32_t status = 0;
+    memcpy(&status, data, 4);
+    return status == 1 ? result : (status < 0 ? status : -1);
 }
 
-int Simou3CameraSettings::getAppVersion(std::string& app)
+int Simou3CameraSettings::ReadTextParameter(unsigned short command, std::string& value)
 {
-    uint8_t appData[9] = { 0 };
-    int ret = getAppVersion(appData);
-    if (ret <= 0) {
-        return ret;
+    unsigned char data[68] = {};
+    int result = ExchangeParameter(command, data, sizeof(data));
+    if (result <= 0) {
+        return result;
     }
-    appData[8] = '\0';
-    app = reinterpret_cast<char*>(appData);
-    return ret;
+    const char* text = reinterpret_cast<const char*>(data + 4);
+    const void* end = memchr(text, 0, 64);
+    if (!end || text[0] == 0) {
+        return SIMOU3_ERR_INFO_UNAVAILABLE;
+    }
+    value.assign(text, static_cast<const char*>(end) - text);
+    return result;
 }
 
-int Simou3CameraSettings::setCameraSN(const uint8_t sn[16])
-{
-    return SIMOU3_ERR_NOT_SUPPORTED;
-    unsigned short cmdType = CMD_TYPE_SET_CAMERA_SN;
-    unsigned short cmdLen = 16;
-    int ret = sendCmd(cmdType, cmdLen, sn);
-    if (ret <= 0) {
-        return ret;
-    }
-    uint8_t snResponse[16];
-    ret = mSock.recvBlock(snResponse, 16);
-    return ret;
-}
+int Simou3CameraSettings::getAppVersion(std::string& app) { return ReadTextParameter(CMD_TYPE_GET_APP_VERSION, app); }
+
+int Simou3CameraSettings::getCameraSN(std::string& sn) { return ReadTextParameter(CMD_TYPE_GET_CAMERA_SN, sn); }
 
 int Simou3CameraSettings::setCameraSN(const std::string& sn)
 {
-    uint8_t snData[16] = { 0 };
-    size_t len = sn.length();
-    if (len > 16) {
-        len = 16;
+    if (sn.empty() || sn.size() >= 64) {
+        return SIMOU3_ERR_CONFIG_INVALID;
     }
-    memcpy(snData, sn.c_str(), len);
-    return setCameraSN(snData);
+    for (unsigned char ch : sn) {
+        if (!((ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || ch == '-' || ch == '_')) {
+            return SIMOU3_ERR_CONFIG_INVALID;
+        }
+    }
+    unsigned char data[68] = {};
+    memcpy(data + 4, sn.data(), sn.size());
+    return ExchangeParameter(CMD_TYPE_SET_CAMERA_SN, data, sizeof(data));
 }
 
-int Simou3CameraSettings::getCameraSN(uint8_t sn[16])
-{
-    unsigned short cmdType = CMD_TYPE_GET_CAMERA_SN;
-    unsigned short cmdLen = 16;
-    int ret = sendGetCmd(cmdType, cmdLen);
-    if (ret <= 0) {
-        return ret;
-    }
-    ret = mSock.recvBlock(sn, 16);
-    return ret;
-}
-
-int Simou3CameraSettings::getCameraSN(std::string& sn)
-{
-    uint8_t snData[17] = { 0 };
-    int ret = getCameraSN(snData);
-    if (ret <= 0) {
-        return ret;
-    }
-    snData[16] = '\0';
-    sn = reinterpret_cast<char*>(snData);
-    return ret;
-}
-
-int Simou3CameraSettings::setFPGAVersion(const uint8_t fpga[8])
-{
-    return SIMOU3_ERR_NOT_SUPPORTED;
-    unsigned short cmdType = CMD_TYPE_SET_FPGA_VERSION;
-    unsigned short cmdLen = 8;
-    int ret = sendCmd(cmdType, cmdLen, fpga);
-    if (ret <= 0) {
-        return ret;
-    }
-    uint8_t fpgaResponse[8];
-    ret = mSock.recvBlock(fpgaResponse, 8);
-    return ret;
-}
-
-int Simou3CameraSettings::setFPGAVersion(const std::string& fpga)
-{
-    uint8_t fpgaData[8] = { 0 };
-    size_t len = fpga.length();
-    if (len > 8) {
-        len = 8;
-    }
-    memcpy(fpgaData, fpga.c_str(), len);
-    return setFPGAVersion(fpgaData);
-}
-
-int Simou3CameraSettings::getFPGAVersion(uint8_t fpga[8])
-{
-    unsigned short cmdType = CMD_TYPE_GET_FPGA_VERSION;
-    unsigned short cmdLen = 8;
-    int ret = sendGetCmd(cmdType, cmdLen);
-    if (ret <= 0) {
-        return ret;
-    }
-    ret = mSock.recvBlock(fpga, 8);
-    return ret;
-}
-
-int Simou3CameraSettings::getFPGAVersion(std::string& fpga)
-{
-    uint8_t fpgaData[9] = { 0 };
-    int ret = getFPGAVersion(fpgaData);
-    if (ret <= 0) {
-        return ret;
-    }
-    fpgaData[8] = '\0';
-    fpga = reinterpret_cast<char*>(fpgaData);
-    return ret;
-}
-
-int Simou3CameraSettings::setHardwareVersion(const uint8_t hardware[8])
-{
-    return SIMOU3_ERR_NOT_SUPPORTED;
-    unsigned short cmdType = CMD_TYPE_SET_HARDWARE_VERSION;
-    unsigned short cmdLen = 8;
-    int ret = sendCmd(cmdType, cmdLen, hardware);
-    if (ret <= 0) {
-        return ret;
-    }
-    uint8_t hardwareResponse[8];
-    ret = mSock.recvBlock(hardwareResponse, 8);
-    return ret;
-}
-
-int Simou3CameraSettings::setHardwareVersion(const std::string& hardware)
-{
-    uint8_t hardwareData[8] = { 0 };
-    size_t len = hardware.length();
-    if (len > 8) {
-        len = 8;
-    }
-    memcpy(hardwareData, hardware.c_str(), len);
-    return setHardwareVersion(hardwareData);
-}
-
-int Simou3CameraSettings::getHardwareVersion(uint8_t hardware[8])
-{
-    return SIMOU3_ERR_NOT_SUPPORTED;
-    unsigned short cmdType = CMD_TYPE_GET_HARDWARE_VERSION;
-    unsigned short cmdLen = 8;
-    int ret = sendGetCmd(cmdType, cmdLen);
-    if (ret <= 0) {
-        return ret;
-    }
-    ret = mSock.recvBlock(hardware, 8);
-    return ret;
-}
-
-int Simou3CameraSettings::getHardwareVersion(std::string& hardware)
-{
-    uint8_t hardwareData[9] = { 0 };
-    int ret = getHardwareVersion(hardwareData);
-    if (ret <= 0) {
-        return ret;
-    }
-    hardwareData[8] = '\0';
-    hardware = reinterpret_cast<char*>(hardwareData);
-    return ret;
-}
-
-int Simou3CameraSettings::setProductModelVersion(const uint8_t product[16])
-{
-    return SIMOU3_ERR_NOT_SUPPORTED;
-    unsigned short cmdType = CMD_TYPE_SET_PRODUCT_MODEL_VERSION;
-    unsigned short cmdLen = 16;
-    int ret = sendCmd(cmdType, cmdLen, product);
-    if (ret <= 0) {
-        return ret;
-    }
-    uint8_t productResponse[16];
-    ret = mSock.recvBlock(productResponse, 16);
-    return ret;
-}
-
-int Simou3CameraSettings::setProductModelVersion(const std::string& product)
-{
-    uint8_t productData[16] = { 0 };
-    size_t len = product.length();
-    if (len > 16) {
-        len = 16;
-    }
-    memcpy(productData, product.c_str(), len);
-    return setProductModelVersion(productData);
-}
-
-int Simou3CameraSettings::getProductModelVersion(uint8_t product[16])
-{
-    return SIMOU3_ERR_NOT_SUPPORTED;
-    unsigned short cmdType = CMD_TYPE_GET_PRODUCT_MODEL_VERSION;
-    unsigned short cmdLen = 16;
-    int ret = sendGetCmd(cmdType, cmdLen);
-    if (ret <= 0) {
-        return ret;
-    }
-    ret = mSock.recvBlock(product, 16);
-    return ret;
-}
+int Simou3CameraSettings::getHardwareVersion(std::string& hardware) { return ReadTextParameter(CMD_TYPE_GET_HARDWARE_VERSION, hardware); }
 
 int Simou3CameraSettings::getProductModelVersion(std::string& product)
 {
-    uint8_t productData[17] = { 0 };
-    int ret = getProductModelVersion(productData);
-    if (ret <= 0) {
-        return ret;
+    return ReadTextParameter(CMD_TYPE_GET_PRODUCT_MODEL_VERSION, product);
+}
+
+int Simou3CameraSettings::GetKernelVersion(std::string& version) { return ReadTextParameter(0x001A, version); }
+
+int Simou3CameraSettings::GetCameraLibVersion(std::string& version) { return ReadTextParameter(0x001B, version); }
+
+int Simou3CameraSettings::SetNetworkConfig(const NetworkConfig& config)
+{
+    uint32_t addresses[3] = {};
+    if (inet_pton(AF_INET, config.ip.c_str(), &addresses[0]) != 1 || inet_pton(AF_INET, config.netmask.c_str(), &addresses[1]) != 1 ||
+        inet_pton(AF_INET, config.gateway.c_str(), &addresses[2]) != 1) {
+        return SIMOU3_ERR_CONFIG_INVALID;
     }
-    productData[16] = '\0';
-    product = reinterpret_cast<char*>(productData);
-    return ret;
+    uint32_t ip = ntohl(addresses[0]);
+    uint32_t mask = ntohl(addresses[1]);
+    uint32_t gateway = ntohl(addresses[2]);
+    uint32_t inverse = ~mask;
+    auto validHost = [mask](uint32_t address) {
+        uint32_t host = address & ~mask;
+        return (address >> 24) != 0 && (address >> 24) != 127 && (address >> 24) < 224 && host != 0 && host != ~mask;
+    };
+    if (mask == 0 || inverse == 0 || (inverse & (inverse + 1)) != 0 || !validHost(ip) ||
+        (gateway != 0 && (!validHost(gateway) || (gateway & mask) != (ip & mask) || gateway == ip))) {
+        return SIMOU3_ERR_CONFIG_INVALID;
+    }
+    unsigned char data[16] = {};
+    memcpy(data + 4, addresses, sizeof(addresses));
+    return ExchangeParameter(CMD_TYPE_SET_IP, data, sizeof(data));
+}
+
+int Simou3CameraSettings::GetNetworkConfig(NetworkConfig& config)
+{
+    unsigned char data[16] = {};
+    int result = ExchangeParameter(CMD_TYPE_GET_IP, data, sizeof(data));
+    if (result <= 0) {
+        return result;
+    }
+    char ip[INET_ADDRSTRLEN];
+    char mask[INET_ADDRSTRLEN];
+    char gateway[INET_ADDRSTRLEN];
+    if (!inet_ntop(AF_INET, data + 4, ip, sizeof(ip)) || !inet_ntop(AF_INET, data + 8, mask, sizeof(mask)) ||
+        !inet_ntop(AF_INET, data + 12, gateway, sizeof(gateway))) {
+        return -1;
+    }
+    config.ip = ip;
+    config.netmask = mask;
+    config.gateway = gateway;
+    return result;
+}
+
+int Simou3CameraSettings::getMacAddress(uint8_t mac[6])
+{
+    unsigned char data[10] = {};
+    int result = ExchangeParameter(CMD_TYPE_GET_MAC, data, sizeof(data));
+    if (result > 0) {
+        memcpy(mac, data + 4, 6);
+    }
+    return result;
+}
+
+int Simou3CameraSettings::getMacAddress(std::string& mac)
+{
+    uint8_t data[6] = {};
+    int result = getMacAddress(data);
+    if (result <= 0) {
+        return result;
+    }
+    char text[18];
+    snprintf(text, sizeof(text), "%02x:%02x:%02x:%02x:%02x:%02x", data[0], data[1], data[2], data[3], data[4], data[5]);
+    mac = text;
+    return result;
 }
 
 int Simou3CameraSettings::setRegistrationSwitch(bool onoff)
@@ -1296,113 +1071,6 @@ int Simou3CameraSettings::setRegistrationSwitch(bool onoff)
         return ret;
     }
     ret = mSock.recvBlock(&onoffLocal, cmdLen);
-    return ret;
-}
-
-int Simou3CameraSettings::setIPAddress(uint32_t ip, uint32_t mask, uint32_t gateway)
-{
-    return SIMOU3_ERR_NOT_SUPPORTED;
-    unsigned short cmdType = CMD_TYPE_SET_IP;
-    unsigned short cmdLen = sizeof(uint32_t) * 3;
-    uint32_t ipData[3] = { ip, mask, gateway };
-    int ret = sendCmd(cmdType, cmdLen, ipData);
-    if (ret <= 0) {
-        return ret;
-    }
-    ret = mSock.recvBlock(ipData, cmdLen);
-    return ret;
-}
-
-int Simou3CameraSettings::getIPAddress(uint32_t& ip, uint32_t& mask, uint32_t& gateway)
-{
-    unsigned short cmdType = CMD_TYPE_GET_IP;
-    unsigned short cmdLen = sizeof(uint32_t) * 3;
-    uint32_t ipData[3];
-    int ret = sendGetCmd(cmdType, cmdLen);
-    if (ret <= 0) {
-        return ret;
-    }
-    ret = mSock.recvBlock(ipData, cmdLen);
-    ip = ipData[0];
-    mask = ipData[1];
-    gateway = ipData[2];
-    return ret;
-}
-
-int Simou3CameraSettings::setIPAddress(std::string ip, std::string mask, std::string gateway)
-{
-    return setIPAddress(static_cast<uint32_t>(inet_addr(ip.c_str())), static_cast<uint32_t>(inet_addr(mask.c_str())),
-        static_cast<uint32_t>(inet_addr(gateway.c_str())));
-}
-
-int Simou3CameraSettings::getIPAddress(std::string& ip, std::string& mask, std::string& gateway)
-{
-    uint32_t _ip;
-    uint32_t _mask;
-    uint32_t _gateway;
-    int ret = getIPAddress(_ip, _mask, _gateway);
-    if (ret <= 0) {
-        return ret;
-    }
-    ip = inet_ntoa(*reinterpret_cast<in_addr*>(&_ip));
-    mask = inet_ntoa(*reinterpret_cast<in_addr*>(&_mask));
-    gateway = inet_ntoa(*reinterpret_cast<in_addr*>(&_gateway));
-    return ret;
-}
-
-int Simou3CameraSettings::setMacAddress(uint8_t mac[6])
-{
-    return SIMOU3_ERR_NOT_SUPPORTED;
-    unsigned short cmdType = CMD_TYPE_SET_MAC;
-    unsigned short cmdLen = sizeof(uint8_t) * 6;
-    int ret = sendCmd(cmdType, cmdLen, mac);
-    if (ret <= 0) {
-        return ret;
-    }
-    ret = mSock.recvBlock(mac, cmdLen);
-    return ret;
-}
-
-int Simou3CameraSettings::getMacAddress(uint8_t mac[6])
-{
-    unsigned short cmdType = CMD_TYPE_GET_MAC;
-    unsigned short cmdLen = sizeof(uint8_t) * 6;
-    int ret = sendGetCmd(cmdType, cmdLen);
-    if (ret <= 0) {
-        return ret;
-    }
-    ret = mSock.recvBlock(mac, cmdLen);
-    return ret;
-}
-
-int Simou3CameraSettings::setMacAddress(std::string mac)
-{
-    uint8_t macData[6];
-    unsigned int temp[6];
-
-    if (sscanf(mac.c_str(), "%x:%x:%x:%x:%x:%x", &temp[0], &temp[1], &temp[2], &temp[3], &temp[4], &temp[5]) != 6) {
-        if (sscanf(mac.c_str(), "%x-%x-%x-%x-%x-%x", &temp[0], &temp[1], &temp[2], &temp[3], &temp[4], &temp[5]) != 6) {
-            return -1;
-        }
-    }
-
-    for (int i = 0; i < 6; i++) {
-        macData[i] = static_cast<uint8_t>((temp[i] & 0xFF));
-    }
-
-    return setMacAddress(macData);
-}
-
-int Simou3CameraSettings::getMacAddress(std::string& mac)
-{
-    uint8_t macData[6];
-    int ret = getMacAddress(macData);
-    if (ret <= 0) {
-        return ret;
-    }
-    char macStr[18];
-    snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x", macData[0], macData[1], macData[2], macData[3], macData[4], macData[5]);
-    mac = macStr;
     return ret;
 }
 

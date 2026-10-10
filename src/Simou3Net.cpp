@@ -7,8 +7,62 @@
 #include "Simou3Log.h"
 
 #include <cstring>
+#include <cerrno>
+
+#ifndef _WIN32
+#include <fcntl.h>
+#endif
 
 namespace movesense {
+
+namespace {
+
+constexpr int kTcpTimeoutMs = 5000;
+
+bool setSocketBlocking(socket_t sock, bool blocking)
+{
+#ifdef _WIN32
+    u_long mode = blocking ? 0 : 1;
+    return ioctlsocket(sock, FIONBIO, &mode) == 0;
+#else
+    int flags = fcntl(sock, F_GETFL, 0);
+    if (flags < 0) {
+        return false;
+    }
+    if (blocking) {
+        flags &= ~O_NONBLOCK;
+    } else {
+        flags |= O_NONBLOCK;
+    }
+    return fcntl(sock, F_SETFL, flags) == 0;
+#endif
+}
+
+bool setTcpTimeouts(socket_t sock)
+{
+#ifdef _WIN32
+    DWORD timeout = kTcpTimeoutMs;
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout)) == SOCKET_ERR) {
+        return false;
+    }
+    if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout)) == SOCKET_ERR) {
+        return false;
+    }
+#else
+    struct timeval timeout;
+    timeout.tv_sec = kTcpTimeoutMs / 1000;
+    timeout.tv_usec = (kTcpTimeoutMs % 1000) * 1000;
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == SOCKET_ERR) {
+        return false;
+    }
+    if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) == SOCKET_ERR) {
+        return false;
+    }
+#endif
+    return true;
+}
+
+} // namespace
 
 Simou3Net::~Simou3Net()
 {
@@ -99,17 +153,84 @@ bool Simou3Net::connectTcp(const std::string& ip, int port, bool noDelay)
         simou3_log("Socket creation failed: " + std::to_string(GET_SOCKET_ERROR()));
         return false;
     }
+
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
-    addr.sin_family = PF_INET;
+    addr.sin_family = AF_INET;
 #ifdef _WIN32
-    inet_pton(AF_INET, PCSTR(ip.c_str()), &addr.sin_addr.s_addr);
+    if (inet_pton(AF_INET, PCSTR(ip.c_str()), &addr.sin_addr.s_addr) != 1) {
 #else
-    inet_pton(AF_INET, ip.c_str(), &addr.sin_addr.s_addr);
+    if (inet_pton(AF_INET, ip.c_str(), &addr.sin_addr.s_addr) != 1) {
 #endif
+        simou3_log("Invalid TCP address: " + ip);
+        CLOSE_SOCKET(sock);
+        return false;
+    }
     addr.sin_port = htons(port);
-    if (connect(sock, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0) {
-        simou3_log("Connect failed.");
+
+    if (!setSocketBlocking(sock, false)) {
+        simou3_log("Set nonblocking failed: " + std::to_string(GET_SOCKET_ERROR()));
+        CLOSE_SOCKET(sock);
+        return false;
+    }
+
+    bool connected = false;
+    if (connect(sock, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == 0) {
+        connected = true;
+    } else {
+        int error = GET_SOCKET_ERROR();
+#ifdef _WIN32
+        bool pending = error == WSAEWOULDBLOCK || error == WSAEINPROGRESS || error == WSAEALREADY;
+#else
+        bool pending = error == EINPROGRESS || error == EALREADY;
+#endif
+        if (!pending) {
+            simou3_log("Connect failed: " + std::to_string(error));
+        } else {
+            fd_set writeSet;
+            FD_ZERO(&writeSet);
+            FD_SET(sock, &writeSet);
+            struct timeval timeout;
+            timeout.tv_sec = kTcpTimeoutMs / 1000;
+            timeout.tv_usec = (kTcpTimeoutMs % 1000) * 1000;
+#ifdef _WIN32
+            int ready = select(0, nullptr, &writeSet, nullptr, &timeout);
+#else
+            int ready = select(sock + 1, nullptr, &writeSet, nullptr, &timeout);
+#endif
+            if (ready == 0) {
+                simou3_log("Connect timed out.");
+            } else if (ready < 0) {
+                simou3_log("Connect select failed: " + std::to_string(GET_SOCKET_ERROR()));
+            } else {
+                int socketError = 0;
+#ifdef _WIN32
+                int errorLen = sizeof(socketError);
+                int result = getsockopt(sock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&socketError), &errorLen);
+#else
+                socklen_t errorLen = sizeof(socketError);
+                int result = getsockopt(sock, SOL_SOCKET, SO_ERROR, &socketError, &errorLen);
+#endif
+                if (result == SOCKET_ERR) {
+                    simou3_log("Connect status failed: " + std::to_string(GET_SOCKET_ERROR()));
+                } else if (socketError != 0) {
+                    simou3_log("Connect failed: " + std::to_string(socketError));
+                } else {
+                    connected = true;
+                }
+            }
+        }
+    }
+
+    if (!connected || !setSocketBlocking(sock, true)) {
+        if (connected) {
+            simou3_log("Set blocking failed: " + std::to_string(GET_SOCKET_ERROR()));
+        }
+        CLOSE_SOCKET(sock);
+        return false;
+    }
+    if (!setTcpTimeouts(sock)) {
+        simou3_log("Set TCP timeout failed: " + std::to_string(GET_SOCKET_ERROR()));
         CLOSE_SOCKET(sock);
         return false;
     }
