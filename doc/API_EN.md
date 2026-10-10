@@ -77,20 +77,21 @@ On a **passive P-type unit**, `setRGB*` / `getRGB*` return not-supported and nev
 
 ## 4. Device information
 
-| Interface | Function | Parameters | Returns |
-| --- | --- | --- | --- |
-| `getCameraType(int& type)` | Read the model | `type` output: `1` = passive P-type (no center camera), otherwise the unit has one | `>0` success |
-| `getAppVersion(std::string& version)` | Read the application version | `version` output string | `>0` success |
-| `getCameraSN(std::string& sn)` | Read the serial number | `sn` output string | `>0` success |
-| `getFPGAVersion(std::string& fpga)` | Read the FPGA version | `fpga` output string | `>0` success |
-| `getFirmwareVersion(unsigned& firmware)` | **Not supported yet** | — | `-100` |
-| `updateFirmware(std::string firmwareName)` | **Not supported yet** | — | `-100` |
-| `setCameraSN(const std::string& sn)` | **Not supported yet** | — | `-100` |
-| `setFPGAVersion(const std::string& fpga)` | **Not supported yet** | — | `-100` |
-| `setHardwareVersion(const std::string& hardware)` | **Not supported yet** | — | `-100` |
-| `getHardwareVersion(std::string& hardware)` | **Not supported yet** | — | `-100` |
-| `setProductModelVersion(const std::string& product)` | **Not supported yet** | — | `-100` |
-| `getProductModelVersion(std::string& product)` | **Not supported yet** | — | `-100` |
+| API | Function | Return |
+| --- | --- | --- |
+| getCameraType(int& type) | Read P/AP type, 1=P, 2=AP | >0 success |
+| getAppVersion(std::string& version) | Read LocalApp version | >0 success |
+| GetKernelVersion(std::string& version) | Read running Linux kernel version | >0 success |
+| GetCameraLibVersion(std::string& version) | Read libMoveSenseCamera.so version | >0 success |
+| getMacAddress(std::string& mac) | Read current eth0 MAC, read-only | >0 success |
+| getHardwareVersion(std::string& hardware) | Read production hardware version | >0 success, -107 unavailable |
+| getProductModelVersion(std::string& product) | Read production product model | >0 success, -107 unavailable |
+| getCameraSN(std::string& sn) | Read complete serial number | >0 success |
+| setCameraSN(const std::string& sn) | Validate and persist SN without disconnecting | >0 success |
+
+SN accepts 1 to 63 ASCII letters, digits, underscores or hyphens without truncation. It is stored in /home/Param/CameraProbuctSn using SN, a space and the value. Reads fall back to /usr/local/bin/CameraProbuctSn only when the new file is absent and do not create files. Production supplies hardware_version= and product_model= in /home/Param/device.conf, up to 63 bytes per value. MAC, hardware, model and FPGA setters are not exposed.
+
+These APIs and parameter replies introduce breaking changes. Update camera and SDK together; legacy fixed-size replies are unsupported.
 
 ## 5. Stereo exposure and gain
 
@@ -201,14 +202,19 @@ On a **passive P-type unit**, `setRGB*` / `getRGB*` return not-supported and nev
 
 ## 11. Network configuration
 
-| Interface | Function | Parameters | Returns |
-| --- | --- | --- | --- |
-| `getIPAddress(uint32_t& ip, uint32_t& mask, uint32_t& gateway)` | Read the IP settings (integer form) | three outputs, network byte order | `>0` success |
-| `getIPAddress(std::string& ip, std::string& mask, std::string& gateway)` | Read the IP settings (dotted form) | three outputs | `>0` success |
-| `getMacAddress(uint8_t mac[6])` | Read the MAC address (byte array) | `mac` 6-byte output | `>0` success |
-| `getMacAddress(std::string& mac)` | Read the MAC address (string) | `mac` output | `>0` success |
-| `setIPAddress(...)` | **Not supported yet** | — | `-100` |
-| `setMacAddress(...)` | **Not supported yet** | — | `-100` |
+| API | Function | Return |
+| --- | --- | --- |
+| GetNetworkConfig(NetworkConfig& config) | Read current eth0 IPv4 address, mask and gateway | >0 success |
+| SetNetworkConfig(const NetworkConfig& config) | Validate, persist and dynamically apply the complete group | >0 accepted and saved |
+| getMacAddress(uint8_t mac[6]) / getMacAddress(std::string& mac) | Read current MAC | >0 success |
+
+NetworkConfig has string fields ip, netmask and gateway. Submit all three. Only static IPv4 is supported. Masks must be contiguous; network, broadcast, loopback and multicast host addresses are rejected. A nonzero gateway must be a valid host in the same subnet and differ from the camera IP; 0.0.0.0 removes the default gateway. DHCP, DNS and MAC writes are not exposed.
+
+After acknowledgement the camera disconnects ports 5001/5002, completes image cleanup and applies the address and route. Close the old session, create a camera object at the new IP, read back configuration and acquire a frame to confirm application. Unchanged running values are saved without disconnecting. Application failure attempts to restore the previous network and file; acknowledgement does not guarantee later application.
+
+Files: /home/Param/network.conf is dynamic; /home/Param/network.default is the production fallback. Startup fully validates the dynamic file and falls back on absence or corruption. SDK atomically replaces only the dynamic file. Default is 192.168.1.70/24 with gateway 192.168.1.1; the device MAC is preserved.
+
+Errors: -105 invalid input, -106 storage failure, -107 unavailable information, -108 configuration busy. Connection errors retain the <=0 convention. A timeout or disconnection is not proof of application; verify at the new address.
 
 ## 12. Camera discovery
 

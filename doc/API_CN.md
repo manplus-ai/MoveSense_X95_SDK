@@ -8,15 +8,15 @@
 
 除特别说明外,所有返回 `int` 的接口遵循同一约定:
 
-| 返回值                                | 含义                                       |
-| ------------------------------------- | ------------------------------------------ |
-| `> 0`                               | 成功(数值为该次收发的字节数,无其他含义)    |
-| `<= 0`                              | 失败(0 或负数表示连接断开、超时、对端拒绝) |
-| `-100` `SIMOU3_ERR_NOT_SUPPORTED` | 该接口暂不支持                             |
-| `-101` `SIMOU3_ERR_ROI_INVALID`   | ROI 参数非法(SDK 本地校验未通过)           |
-| `-102` `SIMOU3_ERR_ROI_REJECTED`  | ROI 被相机拒绝(回显值与请求不符)           |
-| `-103` `SIMOU3_ERR_TRIGGER_MODE_INVALID` | 触发模式取值非法(SDK 本地校验未通过)  |
-| `-104` `SIMOU3_ERR_TRIGGER_REJECTED`     | 触发请求被相机拒绝                    |
+| 返回值                                       | 含义                                       |
+| -------------------------------------------- | ------------------------------------------ |
+| `> 0`                                      | 成功(数值为该次收发的字节数,无其他含义)    |
+| `<= 0`                                     | 失败(0 或负数表示连接断开、超时、对端拒绝) |
+| `-100` `SIMOU3_ERR_NOT_SUPPORTED`        | 该接口暂不支持                             |
+| `-101` `SIMOU3_ERR_ROI_INVALID`          | ROI 参数非法(SDK 本地校验未通过)           |
+| `-102` `SIMOU3_ERR_ROI_REJECTED`         | ROI 被相机拒绝(回显值与请求不符)           |
+| `-103` `SIMOU3_ERR_TRIGGER_MODE_INVALID` | 触发模式取值非法(SDK 本地校验未通过)       |
+| `-104` `SIMOU3_ERR_TRIGGER_REJECTED`     | 触发请求被相机拒绝                         |
 
 判定成功请用 `ret > 0`,不要用 `ret == 0`。
 
@@ -56,11 +56,11 @@
 
 ## 三、触发
 
-| 接口名称                      | 功能           | 参数含义                                                                                                                                  | 返回值                                             |
-| ----------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| 接口名称                      | 功能           | 参数含义                                                                                                                                                                                                                                   | 返回值                                                |
+| ----------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
 | `setTriggerMode(int mode)`  | 设触发模式     | `mode` `kTriggerModeAuto`(`0`)自动触发:相机按 `setFrameRate` 的帧率连续出图;`kTriggerModeSoft`(`1`)软触发:每调一次 `triggerFrame()` 出一帧;`kTriggerModeExternal`(`2`)外触发:本机不出触发信号,由主相机的触发信号驱动出图 | `>0` 成功 / `-103` 取值非法 / `-104` 被相机拒绝 |
-| `getTriggerMode(int& mode)` | 读当前触发模式 | `mode` 输出,取值同上                                                                                                                   | `>0` 成功                                        |
-| `triggerFrame()`            | 软触发出一帧   | 无                                                                                                                                        | `>0` 成功 / `-104` 被相机拒绝                    |
+| `getTriggerMode(int& mode)` | 读当前触发模式 | `mode` 输出,取值同上                                                                                                                                                                                                                     | `>0` 成功                                           |
+| `triggerFrame()`            | 软触发出一帧   | 无                                                                                                                                                                                                                                         | `>0` 成功 / `-104` 被相机拒绝                     |
 
 > 触发模式只在相机本次运行期间有效,相机重启后恢复为自动触发;断开重连**不会**重置,所以每次连接请在 `openCamera` 之前显式设置一次。
 > 切换触发模式时,相机会丢弃尚未发出的帧。
@@ -76,20 +76,21 @@
 
 ## 四、设备信息
 
-| 接口名称                                               | 功能               | 参数含义                                                | 返回值      |
-| ------------------------------------------------------ | ------------------ | ------------------------------------------------------- | ----------- |
-| `getCameraType(int& type)`                           | 读机型             | `type` 输出:`1` = 被动式 P 型(无中目),其他 = 含中目 | `>0` 成功 |
-| `getAppVersion(std::string& version)`                | 读应用程序版本     | `version` 输出版本串                                  | `>0` 成功 |
-| `getCameraSN(std::string& sn)`                       | 读相机序列号       | `sn` 输出序列号                                       | `>0` 成功 |
-| `getFPGAVersion(std::string& fpga)`                  | 读 FPGA 版本       | `fpga` 输出版本串                                     | `>0` 成功 |
-| `getFirmwareVersion(unsigned& firmware)`             | **暂不支持** | —                                                      | `-100`    |
-| `updateFirmware(std::string firmwareName)`           | **暂不支持** | —                                                      | `-100`    |
-| `setCameraSN(const std::string& sn)`                 | **暂不支持** | —                                                      | `-100`    |
-| `setFPGAVersion(const std::string& fpga)`            | **暂不支持** | —                                                      | `-100`    |
-| `setHardwareVersion(const std::string& hardware)`    | **暂不支持** | —                                                      | `-100`    |
-| `getHardwareVersion(std::string& hardware)`          | **暂不支持** | —                                                      | `-100`    |
-| `setProductModelVersion(const std::string& product)` | **暂不支持** | —                                                      | `-100`    |
-| `getProductModelVersion(std::string& product)`       | **暂不支持** | —                                                      | `-100`    |
+| 接口                                                         | 功能                            | 返回值               |
+| ------------------------------------------------------------ | ------------------------------- | -------------------- |
+| getCameraType(int& type)                                     | 读取 P/AP 类型，1=P，2=AP       | >0 成功              |
+| getAppVersion(std::string& version)                          | 读取 LocalApp 版本              | >0 成功              |
+| GetKernelVersion(std::string& version)                       | 读取运行中的 Linux 内核版本     | >0 成功              |
+| GetCameraLibVersion(std::string& version)                    | 读取 libMoveSenseCamera.so 版本 | >0 成功              |
+| getMacAddress(std::string& mac)                              | 读取 eth0 当前 MAC，只读        | >0 成功              |
+| getHardwareVersion(std::string& hardware)                    | 读取生产配置硬件版本            | >0 成功，-107 无数据 |
+| getProductModelVersion(std::string& product)                 | 读取生产配置产品型号            | >0 成功，-107 无数据 |
+| getCameraSN(std::string& sn)                                 | 读取完整 SN                     | >0 成功              |
+| setCameraSN(const std::string& sn)                           | 校验并持久保存 SN，无需断开     | >0 成功              |
+
+SN 为 1～63 个 ASCII 字母、数字、下划线或连字符，不截断。SN 保存到 /home/Param/CameraProbuctSn，文件内容为 SN 加空格再加号码；新文件不存在时只读旧 /usr/local/bin/CameraProbuctSn，不在读取时补写。硬件版本与产品型号由生产写 /home/Param/device.conf，分别使用 hardware_version= 与 product_model=，每项最多 63 字节。SDK 不暴露 MAC、型号、硬件版本或 FPGA 版本写入接口。
+
+本次接口与参数回包有破坏性变更，需配套更新相机与 SDK，不支持旧版定长回包。
 
 ## 五、双目曝光与增益
 
@@ -200,14 +201,19 @@
 
 ## 十一、网络配置
 
-| 接口名称                                                                   | 功能               | 参数含义            | 返回值      |
-| -------------------------------------------------------------------------- | ------------------ | ------------------- | ----------- |
-| `getIPAddress(uint32_t& ip, uint32_t& mask, uint32_t& gateway)`          | 读 IP 配置(整型)   | 三项输出,网络字节序 | `>0` 成功 |
-| `getIPAddress(std::string& ip, std::string& mask, std::string& gateway)` | 读 IP 配置(点分串) | 三项输出            | `>0` 成功 |
-| `getMacAddress(uint8_t mac[6])`                                          | 读 MAC(字节数组)   | `mac` 输出 6 字节 | `>0` 成功 |
-| `getMacAddress(std::string& mac)`                                        | 读 MAC(字符串)     | `mac` 输出        | `>0` 成功 |
-| `setIPAddress(...)`                                                      | **暂不支持** | —                  | `-100`    |
-| `setMacAddress(...)`                                                     | **暂不支持** | —                  | `-100`    |
+| 接口                                                            | 功能                          | 返回值          |
+| --------------------------------------------------------------- | ----------------------------- | --------------- |
+| GetNetworkConfig(NetworkConfig& config)                         | 读取 eth0 当前 IP、掩码、网关 | >0 成功         |
+| SetNetworkConfig(const NetworkConfig& config)                   | 整组校验、持久保存并动态应用  | >0 已接受并保存 |
+| getMacAddress(uint8_t mac[6]) / getMacAddress(std::string& mac) | 读取当前 MAC                  | >0 成功         |
+
+NetworkConfig 包含字符串 ip、netmask、gateway，三项必须完整提交。使用 IPv4 静态地址；掩码连续且主机地址不得为网络地址、广播地址、回环或组播地址。网关须同网段有效且不同于相机 IP，0.0.0.0 表示无默认网关。不开放 DHCP/DNS 或 MAC 修改。
+
+SetNetworkConfig 成功确认后，相机断开 5001/5002，完成图像清理，再应用地址与路由。调用者关闭旧会话、使用新 IP 创建对象，GetNetworkConfig 回读并取图验证最终生效。未变更运行值时仅保存、不主动断开。应用失败尝试恢复原网络与原文件，确认回包不表示后续应用已完成。
+
+配置路径：/home/Param/network.conf 为动态文件，/home/Param/network.default 为生产默认文件。每次启动先完整校验动态文件；缺失或损坏则使用 default。SDK 原子替换动态文件，不改 default。默认地址为 192.168.1.70/24，网关为 192.168.1.1，MAC 保持设备自身地址。
+
+错误：-105 参数非法，-106 持久保存失败，-107 信息不可用，-108 改网忙。所有连接类错误保留 <=0 返回约定。不得把超时或断开当作应用成功，需通过新地址回读确认。
 
 ## 十二、相机发现
 
