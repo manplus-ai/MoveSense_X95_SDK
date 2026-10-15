@@ -210,6 +210,14 @@ int Simou3CameraScan::sendScanCommand(std::string ip, CameraInfo& cameraInfo)
                 char gwStr[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET, &gwAddr, gwStr, INET_ADDRSTRLEN);
                 cameraInfo.gateway = gwStr;
+
+                if (recvLen >= 22 && recvDataLen >= 14) {
+                    struct in_addr maskAddr;
+                    std::memcpy(&maskAddr, payload + 10, 4);
+                    char maskStr[INET_ADDRSTRLEN];
+                    inet_ntop(AF_INET, &maskAddr, maskStr, INET_ADDRSTRLEN);
+                    cameraInfo.netmask = maskStr;
+                }
             }
 
             return 0;

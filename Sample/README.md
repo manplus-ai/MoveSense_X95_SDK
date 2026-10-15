@@ -53,14 +53,14 @@ Sample 1          # 直接用模式 1(仍扫描选相机)
 
 ## 图像格式
 
-相机出 **NV21**(YVU_SEMIPLANAR_420),显示用 `COLOR_YUV2BGR_NV21` 解码。深度 U16(mm)。SEG 为 YDR1 检测结果(magic `0x31524459`)。
+相机出 **NV21**(YVU_SEMIPLANAR_420),显示用 `COLOR_YUV2BGR_NV21` 解码。深度 U16,每个计数代表的毫米数用 `getDepthUnitMm` 读取(默认 1 mm)。SEG 为 YDR1 检测结果(magic `0x31524459`)。
 
 ## 编译
 
-随 SDK 顶层 CMake 一起编(顶层已 `add_subdirectory(Sample)`):
+Sample 默认不编译,配置时打开 `MOVESENSE_BUILD_SAMPLE`(需要 OpenCV):
 
 ```
-cmake -S . -B build && cmake --build build       # Windows: 产物旁自动拷 dll
+cmake -S . -B build -DMOVESENSE_BUILD_SAMPLE=ON && cmake --build build       # Windows: 产物旁自动拷 dll,Linux: 产物在 build/bin/Sample
 ```
 
 Linux 需先 `sudo apt install libopencv-dev`。

@@ -37,27 +37,27 @@ unsigned ModeSpec::Mask() const
 {
     unsigned mask = 0;
     if (m_hasL) {
-        mask |= (1u << TRANSFER_MODE_L_RECTIFIED_BIT);
+        mask |= TRANSFER_MODE_L_RECTIFIED;
     }
 
     if (m_hasR) {
-        mask |= (1u << TRANSFER_MODE_R_RECTIFIED_BIT);
+        mask |= TRANSFER_MODE_R_RECTIFIED;
     }
 
     if (m_hasRgb) {
-        mask |= (1u << TRANSFER_MODE_RGB_RECTIFIED_BIT);
+        mask |= TRANSFER_MODE_RGB_RECTIFIED;
     }
 
     if (m_hasDepth) {
-        mask |= (1u << TRANSFER_MODE_DEPTH_BIT);
+        mask |= TRANSFER_MODE_DEPTH;
     }
 
     if (m_hasSeg) {
-        mask |= (1u << TRANSFER_MODE_SEG_BIT);
+        mask |= TRANSFER_MODE_SEG;
     }
 
     if (m_hasImu) {
-        mask |= (1u << TRANSFER_MODE_IMU_BIT);
+        mask |= TRANSFER_MODE_IMU;
     }
 
     return mask;

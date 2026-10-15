@@ -122,6 +122,76 @@ int Simou3Net::recvBlock(void* buf, int len)
     return len;
 }
 
+int Simou3Net::recvStream(void* buf, int len, const std::atomic<bool>& running)
+{
+    int need = len;
+    unsigned char* p = static_cast<unsigned char*>(buf);
+    while (need > 0) {
+        if (!running.load()) {
+            return -1;
+        }
+
+        fd_set readSet;
+        FD_ZERO(&readSet);
+        FD_SET(mSock, &readSet);
+        struct timeval timeout;
+        timeout.tv_sec = kTcpTimeoutMs / 1000;
+        timeout.tv_usec = (kTcpTimeoutMs % 1000) * 1000;
+#ifdef _WIN32
+        int ready = select(0, &readSet, nullptr, nullptr, &timeout);
+#else
+        int ready = select(mSock + 1, &readSet, nullptr, nullptr, &timeout);
+#endif
+        if (ready == 0) {
+            simou3_log("recvStream: no data for " + std::to_string(kTcpTimeoutMs) + " ms, keep waiting");
+            continue;
+        }
+        if (ready < 0) {
+            int error = GET_SOCKET_ERROR();
+#ifndef _WIN32
+            if (error == EINTR) {
+                continue;
+            }
+#endif
+            simou3_log("recvStream select -1, ERROR: " + std::to_string(error));
+            return -1;
+        }
+
+        int n = recv(mSock, reinterpret_cast<char*>(p) + (len - need), need, 0);
+        if (n < 0) {
+            int error = GET_SOCKET_ERROR();
+#ifdef _WIN32
+            bool retry = error == WSAETIMEDOUT || error == WSAEWOULDBLOCK;
+#else
+            bool retry = error == EAGAIN || error == EWOULDBLOCK || error == EINTR;
+#endif
+            if (retry) {
+                continue;
+            }
+            simou3_log("recvStream -1, ERROR: " + std::to_string(error));
+            return -1;
+        }
+        if (n == 0) {
+            simou3_log("recvStream -2, peer closed");
+            return -2;
+        }
+        need -= n;
+    }
+    return len;
+}
+
+void Simou3Net::shutdownSock()
+{
+    if (mSock == (socket_t)-1) {
+        return;
+    }
+#ifdef _WIN32
+    shutdown(mSock, SD_BOTH);
+#else
+    shutdown(mSock, SHUT_RDWR);
+#endif
+}
+
 int Simou3Net::sendBlock(const void* buf, int len)
 {
     int need = len;

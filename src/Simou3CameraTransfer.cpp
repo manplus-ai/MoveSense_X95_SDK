@@ -67,9 +67,10 @@ void Simou3CameraTransfer::stopChunkRecv()
 {
     mRunning.store(false);
     mSlotCv.notify_all();
-    mSock.closeSock();
+    mSock.shutdownSock();
     if (mRecvChunkThread.joinable())
         mRecvChunkThread.join();
+    mSock.closeSock();
     {
         std::lock_guard<std::mutex> lk(mBmtx);
         mBuckets.clear();
@@ -346,20 +347,20 @@ void Simou3CameraTransfer::recvLoop()
 {
     while (mRunning.load()) {
         unsigned char lb;
-        if (mSock.recvBlock(&lb, 1) <= 0) {
+        if (mSock.recvStream(&lb, 1, mRunning) <= 0) {
             break;
         }
 
         if (lb == 30) {
             unsigned char cb[2];
-            if (mSock.recvBlock(cb, 2) <= 0) {
+            if (mSock.recvStream(cb, 2, mRunning) <= 0) {
                 break;
             }
 
             uint16_t cnt = static_cast<uint16_t>(static_cast<uint16_t>(cb[0]) | (static_cast<uint16_t>(cb[1]) << 8));
             uint32_t plen = static_cast<uint32_t>(cnt) * IMU_SAMPLE_BYTES;
             std::vector<uint8_t> ibuf(plen);
-            if (plen && mSock.recvBlock(ibuf.data(), plen) <= 0) {
+            if (plen && mSock.recvStream(ibuf.data(), plen, mRunning) <= 0) {
                 break;
             }
             for (uint16_t i = 0; i < cnt; i++) {
@@ -371,7 +372,7 @@ void Simou3CameraTransfer::recvLoop()
 
         unsigned char pre[14];
         pre[0] = lb;
-        if (mSock.recvBlock(pre + 1, 13) <= 0) {
+        if (mSock.recvStream(pre + 1, 13, mRunning) <= 0) {
             break;
         }
 
@@ -385,7 +386,7 @@ void Simou3CameraTransfer::recvLoop()
 
         if (c.isHead) {
             unsigned char ext[27];
-            if (mSock.recvBlock(ext, 27) <= 0) {
+            if (mSock.recvStream(ext, 27, mRunning) <= 0) {
                 break;
             }
 
@@ -406,7 +407,7 @@ void Simou3CameraTransfer::recvLoop()
 
         uint32_t clen = c.chunkEnd - c.chunkStart;
         std::vector<uint8_t> buf(clen);
-        if (clen && mSock.recvBlock(buf.data(), clen) <= 0) {
+        if (clen && mSock.recvStream(buf.data(), clen, mRunning) <= 0) {
             break;
         }
         c.recvNow = simou3_now_us();

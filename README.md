@@ -1,6 +1,6 @@
 # MoveSense X95 SDK
 
-> **Status: 0.5.0 — early release.** The API is **not** stable yet and
+> **Status: 0.5.1 — early release.** The API is **not** stable yet and
 > breaking changes are expected before 1.0.
 
 Cross-platform (Linux / Windows) C++ SDK for the MoveSense X95-series
@@ -10,7 +10,7 @@ for depth ranging; depth is computed on the
 device and streamed to the host. A separate RGB stream is provided; its
 calibration is used **only** for point-cloud coloring and does not take part
 in ranging. An on-board IMU (~200 Hz) is streamed alongside the images
-(~25 Hz), which makes the camera suitable for VIO / SLAM / point-cloud work.
+(up to 25 Hz), which makes the camera suitable for VIO / SLAM / point-cloud work.
 
 The host talks to the camera over Ethernet using a private protocol:
 
@@ -62,7 +62,7 @@ Installed layout (relative to `CMAKE_INSTALL_PREFIX`, default `/usr/local`):
 
 ```
 include/movesense/*.h                         public headers
-lib/libMoveSense_X95_SDK.so(.0.5)(.0.5.0)     shared library
+lib/libMoveSense_X95_SDK.so(.0.5)(.0.5.1)     shared library
 lib/cmake/MoveSense_X95_SDK/*.cmake           package config (for find_package)
 ```
 

@@ -77,6 +77,10 @@ int Simou3Camera::getCameraType(int& type)
 {
     return mSimou3CameraSettings.getCameraType(type);
 }
+int Simou3Camera::getDepthUnitMm(double& unitMm)
+{
+    return mSimou3CameraSettings.getDepthUnitMm(unitMm);
+}
 
 int Simou3Camera::setTriggerOut(int out)
 {
@@ -324,6 +328,144 @@ int Simou3Camera::getRGBCalibData(unsigned char* data, int len)
 {
     return mSimou3CameraSettings.getRGBCalibData(data, len);
 }
+namespace {
+
+void packIntrinsics(const calib::Intrinsics& value, float* out)
+{
+    out[0] = value.fx;
+    out[1] = value.fy;
+    out[2] = value.cx;
+    out[3] = value.cy;
+}
+
+void unpackIntrinsics(const float* in, calib::Intrinsics& value)
+{
+    value.fx = in[0];
+    value.fy = in[1];
+    value.cx = in[2];
+    value.cy = in[3];
+}
+
+void packImu(const calib::ImuCalibration& value, float* out)
+{
+    out[calib::kImuGyroNoiseDensity] = value.gyroNoiseDensity;
+    out[calib::kImuGyroRandomWalk] = value.gyroRandomWalk;
+    out[calib::kImuAccelNoiseDensity] = value.accelNoiseDensity;
+    out[calib::kImuAccelRandomWalk] = value.accelRandomWalk;
+    out[calib::kImuTimeshiftMs] = value.timeshiftMs;
+    memcpy(out + calib::kImuRotationRowMajor, value.rotation, sizeof(value.rotation));
+    memcpy(out + calib::kImuTranslationMm, value.translationMm, sizeof(value.translationMm));
+}
+
+void unpackImu(const float* in, calib::ImuCalibration& value)
+{
+    value.gyroNoiseDensity = in[calib::kImuGyroNoiseDensity];
+    value.gyroRandomWalk = in[calib::kImuGyroRandomWalk];
+    value.accelNoiseDensity = in[calib::kImuAccelNoiseDensity];
+    value.accelRandomWalk = in[calib::kImuAccelRandomWalk];
+    value.timeshiftMs = in[calib::kImuTimeshiftMs];
+    memcpy(value.rotation, in + calib::kImuRotationRowMajor, sizeof(value.rotation));
+    memcpy(value.translationMm, in + calib::kImuTranslationMm, sizeof(value.translationMm));
+}
+
+void packStereoCamera(const calib::StereoCamera& value, float* out, int intrinsicsAt, int inverseAt, int distortionAt)
+{
+    packIntrinsics(value.intrinsics, out + intrinsicsAt);
+    memcpy(out + inverseAt, value.inverseRectify, sizeof(value.inverseRectify));
+    memcpy(out + distortionAt, value.distortion, sizeof(value.distortion));
+}
+
+void unpackStereoCamera(const float* in, calib::StereoCamera& value, int intrinsicsAt, int inverseAt, int distortionAt)
+{
+    unpackIntrinsics(in + intrinsicsAt, value.intrinsics);
+    memcpy(value.inverseRectify, in + inverseAt, sizeof(value.inverseRectify));
+    memcpy(value.distortion, in + distortionAt, sizeof(value.distortion));
+}
+
+} // namespace
+
+int Simou3Camera::setStereoCalibData(const calib::StereoCalibration& calibration)
+{
+    float data[calib::kStereoCalibFloats] = { 0.0f };
+    packStereoCamera(calibration.left, data, calib::kStereoLeftIntrinsics, calib::kStereoLeftInverseRectifyRowMajor,
+        calib::kStereoLeftDistortion);
+    packStereoCamera(calibration.right, data, calib::kStereoRightIntrinsics, calib::kStereoRightInverseRectifyRowMajor,
+        calib::kStereoRightDistortion);
+    data[calib::kRectifiedFx] = calibration.rectified.fx;
+    data[calib::kRectifiedFy] = calibration.rectified.fy;
+    data[calib::kRectifiedCx] = calibration.rectified.cx;
+    data[calib::kRectifiedCy] = calibration.rectified.cy;
+    data[calib::kStereoNegativeBaselineMm] = calibration.negativeBaselineMm;
+    packImu(calibration.imu, data + calib::kStereoImuSegment);
+
+    return setStereoCalibData(reinterpret_cast<unsigned char*>(data), calib::kStereoCalibBytes);
+}
+
+int Simou3Camera::getStereoCalibData(calib::StereoCalibration& calibration)
+{
+    float data[calib::kStereoCalibFloats] = { 0.0f };
+    const int ret = getStereoCalibData(reinterpret_cast<unsigned char*>(data), calib::kStereoCalibBytes);
+    if (ret <= 0) {
+        return ret;
+    }
+
+    unpackStereoCamera(data, calibration.left, calib::kStereoLeftIntrinsics, calib::kStereoLeftInverseRectifyRowMajor,
+        calib::kStereoLeftDistortion);
+    unpackStereoCamera(data, calibration.right, calib::kStereoRightIntrinsics, calib::kStereoRightInverseRectifyRowMajor,
+        calib::kStereoRightDistortion);
+    calibration.rectified.fx = data[calib::kRectifiedFx];
+    calibration.rectified.fy = data[calib::kRectifiedFy];
+    calibration.rectified.cx = data[calib::kRectifiedCx];
+    calibration.rectified.cy = data[calib::kRectifiedCy];
+    calibration.negativeBaselineMm = data[calib::kStereoNegativeBaselineMm];
+    unpackImu(data + calib::kStereoImuSegment, calibration.imu);
+
+    return ret;
+}
+
+int Simou3Camera::setRGBCalibData(const calib::RgbCalibration& calibration)
+{
+    float data[calib::kRgbCalibFloats] = { 0.0f };
+    memcpy(data, calibration.reserved, sizeof(calibration.reserved));
+    packIntrinsics(calibration.intrinsics, data + calib::kRgbIntrinsics);
+    memcpy(data + calib::kRgbInverseRectifyRowMajor, calibration.inverseRectify, sizeof(calibration.inverseRectify));
+    memcpy(data + calib::kRgbDistortion, calibration.distortion, sizeof(calibration.distortion));
+    data[calib::kRectifiedFx] = calibration.rectified.fx;
+    data[calib::kRectifiedFy] = calibration.rectified.fy;
+    data[calib::kRectifiedCx] = calibration.rectified.cx;
+    data[calib::kRectifiedCy] = calibration.rectified.cy;
+    data[calib::kRgbReserved46] = calibration.reserved46;
+    memcpy(data + calib::kRgbRotationRowMajor, calibration.payloadRotation, sizeof(calibration.payloadRotation));
+    memcpy(data + calib::kRgbTranslationMm, calibration.registeredTranslation, sizeof(calibration.registeredTranslation));
+    packImu(calibration.imu, data + calib::kRgbImuSegment);
+
+    return setRGBCalibData(reinterpret_cast<unsigned char*>(data), calib::kRgbCalibBytes);
+}
+
+int Simou3Camera::getRGBCalibData(calib::RgbCalibration& calibration)
+{
+    float data[calib::kRgbCalibFloats] = { 0.0f };
+    const int ret = getRGBCalibData(reinterpret_cast<unsigned char*>(data), calib::kRgbCalibBytes);
+    if (ret <= 0) {
+        return ret;
+    }
+
+    memcpy(calibration.reserved, data, sizeof(calibration.reserved));
+    unpackIntrinsics(data + calib::kRgbIntrinsics, calibration.intrinsics);
+    memcpy(calibration.inverseRectify, data + calib::kRgbInverseRectifyRowMajor, sizeof(calibration.inverseRectify));
+    memcpy(calibration.distortion, data + calib::kRgbDistortion, sizeof(calibration.distortion));
+    calibration.rectified.fx = data[calib::kRectifiedFx];
+    calibration.rectified.fy = data[calib::kRectifiedFy];
+    calibration.rectified.cx = data[calib::kRectifiedCx];
+    calibration.rectified.cy = data[calib::kRectifiedCy];
+    calibration.reserved46 = data[calib::kRgbReserved46];
+    memcpy(calibration.payloadRotation, data + calib::kRgbRotationRowMajor, sizeof(calibration.payloadRotation));
+    memcpy(calibration.registeredTranslation, data + calib::kRgbTranslationMm, sizeof(calibration.registeredTranslation));
+    unpackImu(data + calib::kRgbImuSegment, calibration.imu);
+
+    return ret;
+}
+
 int Simou3Camera::setFrameRate(int fps)
 {
     return mSimou3CameraSettings.setFrameRate(fps);
