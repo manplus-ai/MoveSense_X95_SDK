@@ -17,8 +17,17 @@ Unless stated otherwise, every interface returning `int` follows the same conven
 | `-102` `SIMOU3_ERR_ROI_REJECTED` | ROI rejected by the camera (echoed value differs from the request) |
 | `-103` `SIMOU3_ERR_TRIGGER_MODE_INVALID` | Invalid trigger mode (rejected by local SDK validation) |
 | `-104` `SIMOU3_ERR_TRIGGER_REJECTED` | Trigger request rejected by the camera |
+| `-105` `SIMOU3_ERR_CONFIG_INVALID` | Invalid argument (network config, SN, trigger output value, etc.) |
+| `-106` `SIMOU3_ERR_STORAGE_FAILED` | The camera failed to persist the setting |
+| `-107` `SIMOU3_ERR_INFO_UNAVAILABLE` | The camera has no such information |
+| `-108` `SIMOU3_ERR_CONFIG_BUSY` | The camera is changing its network; retry later |
+| `-109` `SIMOU3_ERR_CONFIG_APPLY_FAILED` | Applying the network configuration failed |
 
 Test for success with `ret > 0`, not with `ret == 0`.
+
+### Timeouts
+
+TCP connect, send and receive use a 5-second timeout. A request/response on the control channel (5002) that times out returns failure (`<= 0`). On the data channel (5001), 5 seconds without data only logs a message and the SDK keeps waiting; the connection is not dropped. Receiving ends only when you call `closeCamera` or the camera disconnects.
 
 ### Call order
 
@@ -30,7 +39,7 @@ Test for success with `ret > 0`, not with `ret == 0`.
 
 `Stereo` refers to the stereo pair (left and right share one parameter set; both ISP pipes are written
 internally); `RGB` refers to the color camera.
-On a **passive P-type unit**, `setRGB*` / `getRGB*` return not-supported and never touch the hardware.
+A **passive P-type unit** has no RGB camera: `setRGB*` has no effect on the hardware and the values returned by `getRGB*` are meaningless.
 
 ## 1. Connection and streaming
 
@@ -39,7 +48,7 @@ On a **passive P-type unit**, `setRGB*` / `getRGB*` return not-supported and nev
 | `Simou3Camera(std::string ip)` | Construct a camera object | `ip` camera address, default `192.168.1.70` | — |
 | `isCameraOnline()` | Probe whether the camera is online | none | `true` if online |
 | `isCameraOnline(std::string ip)` | Probe whether the camera at a given address is online | `ip` target address | `true` if online |
-| `openCamera(int mode)` | Open the data stream and start receiving | `mode` subscription mask, OR-ed from the `TRANSFER_MODE_*_BIT` values in `transfer_mode_def.h` | `>0` success |
+| `openCamera(int mode)` | Open the data stream and start receiving | `mode` subscription mask, OR-ed from the mask macros in `transfer_mode_def.h`, e.g. `TRANSFER_MODE_L_RECTIFIED \| TRANSFER_MODE_DEPTH` (same as `(1u << TRANSFER_MODE_*_BIT)`; the `*_BIT` macros are kept) | `>0` success |
 | `closeCamera()` | Close the data stream | none | `>0` success |
 | `openCameraSettings()` | Open the control channel (port 5002) | none | `>0` success |
 | `closeCameraSettings()` | Close the control channel | none | `>0` success |
@@ -48,11 +57,11 @@ On a **passive P-type unit**, `setRGB*` / `getRGB*` return not-supported and nev
 
 | Interface | Function | Parameters | Returns |
 | --- | --- | --- | --- |
-| `getFrame(MovesenseFrame& out)` | Fetch one frame (blocks until the default timeout) | `out` output frame | `true` if a frame was received |
-| `getFrame(MovesenseFrame& out, int timeoutMs)` | Fetch one frame (explicit timeout) | `out` output frame; `timeoutMs` timeout in ms | `true` if a frame was received |
+| `getFrame(MovesenseFrame& out)` | Fetch one frame (non-blocking; returns `false` at once when there is no new frame) | `out` output frame | `true` if a frame was received |
+| `getFrame(MovesenseFrame& out, int timeoutMs)` | Fetch one frame (explicit timeout) | `out` output frame; `timeoutMs` timeout in ms, `0` does not wait, `<0` waits until a frame arrives or the stream is closed | `true` if a frame was received |
 | `getStats()` | Read receive statistics | none | `Simou3Stats` struct |
 | `setDropDegradedFrame(bool onoff)` | Set whether incomplete frames are discarded | `onoff` `true` drops partial frames | none |
-| `getIMU(std::vector<Imu>& out, int num)` | Fetch IMU samples | `out` output vector; `num` max samples, default 200 | `>0` number of samples |
+| `getIMU(std::vector<Imu>& out, int num)` | Fetch IMU samples | `out` output vector; `num` max samples, default 200; the SDK keeps only the latest 200 samples, so a slow reader loses the oldest | `>0` number of samples |
 | `alignTimeToHost()` | Align the camera clock to the host | none | `>0` success |
 
 ## 3. Trigger
@@ -61,6 +70,8 @@ On a **passive P-type unit**, `setRGB*` / `getRGB*` return not-supported and nev
 | --- | --- | --- | --- |
 | `setTriggerMode(int mode)` | Set the trigger mode | `mode` `kTriggerModeAuto` (`0`) auto trigger: the camera streams continuously at the `setFrameRate` rate; `kTriggerModeSoft` (`1`) soft trigger: one frame per `triggerFrame()` call; `kTriggerModeExternal` (`2`) external trigger: this camera outputs no trigger signal and captures on the master camera's trigger signal | `>0` success / `-103` invalid value / `-104` rejected by the camera |
 | `getTriggerMode(int& mode)` | Read the current trigger mode | `mode` output, same values as above | `>0` success |
+| `setTriggerOut(int out)` | Enable or disable trigger pulse output | `out` `0` disables output, `1` enables output; in external trigger mode the request is accepted but the effective value is always `0` | `>0` success / `-105` invalid value / `-104` rejected by the camera |
+| `getTriggerOut(int& out)` | Read the effective trigger pulse output state | `out` output, `0` or `1`; external trigger mode always reports `0` | `>0` success |
 | `triggerFrame()` | Soft-trigger one frame | none | `>0` success / `-104` rejected by the camera |
 
 > The trigger mode lasts only for the current camera run and falls back to auto trigger after a camera restart. It is **not** reset on reconnect, so set it explicitly before `openCamera` on every connection.
@@ -70,6 +81,7 @@ On a **passive P-type unit**, `setRGB*` / `getRGB*` return not-supported and nev
 > Two `triggerFrame()` calls must be at least one frame period apart, i.e. `1000 / fps` ms (40 ms at 25 fps), so in soft trigger mode `setFrameRate` sets the highest allowed trigger rate.
 >
 > `triggerFrame()` returns `-104` when: the camera is not in soft trigger mode; less than one frame period has passed since the last successful trigger; or the camera is not streaming yet (before the first `openCamera`).
+> `setTriggerOut(0)` disables pulse output in auto and soft trigger modes. In soft trigger mode, `triggerFrame()` is rejected while output is disabled. External trigger mode always keeps pulse output disabled, regardless of the requested value.
 >
 > Multi-camera sync: wire the cameras' trigger lines together, with one master and the others as slaves. Set the master to auto trigger (`0`) or soft trigger (`1`) and every slave to external trigger (`2`).
 > With the master in auto trigger, all cameras stream in sync at the master's frame rate; with the master in soft trigger, each successful `triggerFrame()` on the master makes every camera capture one frame at the same time.
@@ -79,7 +91,8 @@ On a **passive P-type unit**, `setRGB*` / `getRGB*` return not-supported and nev
 
 | API | Function | Return |
 | --- | --- | --- |
-| getCameraType(int& type) | Read P/AP type, 1=P, 2=AP | >0 success |
+| getCameraType(int& type) | Read the camera type, 0=A, 1=P, 2=AP | >0 success |
+| getDepthUnitMm(double& unitMm) | Read the depth unit: millimetres represented by one depth count, taken from the camera config `Dpu.depth_unit_mm` | >0 success, -107 unavailable |
 | getAppVersion(std::string& version) | Read LocalApp version | >0 success |
 | GetKernelVersion(std::string& version) | Read running Linux kernel version | >0 success |
 | GetCameraLibVersion(std::string& version) | Read libMoveSenseCamera.so version | >0 success |
@@ -91,7 +104,7 @@ On a **passive P-type unit**, `setRGB*` / `getRGB*` return not-supported and nev
 
 SN accepts 1 to 63 ASCII letters, digits, underscores or hyphens without truncation. It is stored in /home/Param/CameraProbuctSn using SN, a space and the value. Reads fall back to /usr/local/bin/CameraProbuctSn only when the new file is absent and do not create files. Production supplies hardware_version= and product_model= in /home/Param/device.conf, up to 63 bytes per value. MAC, hardware, model and FPGA setters are not exposed.
 
-These APIs and parameter replies introduce breaking changes. Update camera and SDK together; legacy fixed-size replies are unsupported.
+Since 0.5.0 these APIs and parameter replies have breaking changes. Update camera and SDK together; legacy fixed-size replies are unsupported.
 
 ## 5. Stereo exposure and gain
 
@@ -175,11 +188,28 @@ These APIs and parameter replies introduce breaking changes. Update camera and S
 | `setRGBCalibData(unsigned char* data, int len)` | Write RGB calibration data | `len` defaults to `calib::kRgbCalibBytes` | `>0` success |
 | `getRGBCalibData(unsigned char* data, int len)` | Read RGB calibration data | same as above | `>0` success |
 
+Besides the byte-array interfaces there are struct overloads taking `calib::StereoCalibration` / `calib::RgbCalibration` from `Simou3CalibLayout.h`. The SDK packs the struct into the float array using the calibration layout and calls the byte interfaces above, so the return values are the same.
+
+| Interface | Function | Returns |
+| --- | --- | --- |
+| `setStereoCalibData(const calib::StereoCalibration& c)` | Write stereo calibration (struct) | `>0` success |
+| `getStereoCalibData(calib::StereoCalibration& c)` | Read stereo calibration (struct) | `>0` success |
+| `setRGBCalibData(const calib::RgbCalibration& c)` | Write RGB calibration (struct) | `>0` success |
+| `getRGBCalibData(calib::RgbCalibration& c)` | Read RGB calibration (struct) | `>0` success |
+
+Struct fields:
+
+- `Intrinsics`: `fx` `fy` `cx` `cy`, in pixels.
+- `ImuCalibration`: `gyroNoiseDensity` `gyroRandomWalk` `accelNoiseDensity` `accelRandomWalk` are noise parameters; `timeshiftMs` is the IMU-to-camera time offset in milliseconds; `rotation` is a 3x3 rotation, row-major; `translationMm` is the translation in millimetres.
+- `StereoCamera` (one eye): `intrinsics` raw intrinsics; `inverseRectify` is the 3x3 inverse rectification rotation, row-major; `distortion` holds 8 distortion coefficients.
+- `StereoCalibration`: `left` / `right` are `StereoCamera`; `rectified` holds the rectified intrinsics; `negativeBaselineMm` is the negative baseline length in millimetres; `imu` is an `ImuCalibration`.
+- `RgbCalibration`: `intrinsics` `inverseRectify` `distortion` `rectified` as above; `registeredTranslation` is the registration translation in millimetres; `imu` is an `ImuCalibration`; `reserved` / `reserved46` / `payloadRotation` are reserved or fixed fields: write back what you read (`payloadRotation` defaults to identity).
+
 ## 9. Frame rate and downsampling
 
 | Interface | Function | Parameters | Returns |
 | --- | --- | --- | --- |
-| `setFrameRate(int fps)` | Set the frame rate | `fps` target rate, bounded by the subscription and the downsampling state | `>0` success |
+| `setFrameRate(int fps)` | Set the frame rate | `fps` target rate, valid range `[1,25]`; values outside it are ignored by the camera and the old value is kept (still returns success); the effective ceiling is bounded by the subscription and the downsampling state | `>0` success |
 | `getFrameRate(int& fps)` | Read the frame rate | `fps` output | `>0` success |
 | `setDownsampleMode(int mode)` | Select the downsampling stage | `0` pre-downsample (before the algorithm) / `1` post-downsample (resize before sending) | `>0` success |
 | `setDepthDownsample(bool onoff)` | Toggle depth downsampling | `onoff` `true` enables | `>0` success |
@@ -200,7 +230,16 @@ These APIs and parameter replies introduce breaking changes. Update camera and S
 > Depth does not support ROI.
 > Detection boxes (SEG) are still in full-frame coordinates; subtract the ROI origin before drawing.
 
-## 11. Network configuration
+## 11. DOE projector
+
+| Interface | Function | Parameters | Returns |
+| --- | --- | --- | --- |
+| `setDOEPower(unsigned power)` | Set the DOE power | `power` in `[0,255]`, values above are treated as `255`; `0` turns it off, otherwise every 32 is one step, 8 steps in total, and a higher step opens more channels | `>0` success |
+| `getDOEPower(unsigned& power)` | Read the DOE power | `power` output, the last value set in `[0,255]` | `>0` success |
+
+> A passive P-type unit has no DOE and ignores the request.
+
+## 12. Network configuration
 
 | API | Function | Return |
 | --- | --- | --- |
@@ -216,11 +255,11 @@ Files: /home/Param/network.conf is dynamic; /home/Param/network.default is the p
 
 Errors: -105 invalid input, -106 storage failure, -107 unavailable information, -108 configuration busy. Connection errors retain the <=0 convention. A timeout or disconnection is not proof of application; verify at the new address.
 
-## 12. Camera discovery
+## 13. Camera discovery
 
 | Interface | Function | Parameters | Returns |
 | --- | --- | --- | --- |
-| `scanSingleCamera(std::string ip, CameraInfo& cameraInfo)` | Probe the camera at a given address | `ip` target; `cameraInfo` output info | `>0` success |
+| `scanSingleCamera(std::string ip, CameraInfo& cameraInfo)` | Probe the camera at a given address | `ip` target; `cameraInfo` output (ip, mac, gateway, netmask) | `0` success, `<0` failure (timeout or no reply) |
 | `scanAllCameras(std::string broadcastIP)` | Scan one broadcast domain | `broadcastIP` broadcast address, default `255.255.255.255` | array of camera info |
 | `scanAllNetworkInterfaces()` | Scan across every local network interface | none | array of camera info |
 | `setScanTimeout(int timeoutMS)` | Set the scan timeout | `timeoutMS` milliseconds | none |
@@ -229,3 +268,12 @@ Errors: -105 invalid input, -106 storage failure, -107 unavailable information, 
 | `scanCamerasAllInterfaces(...)` (static) | Static all-interface scan | `port` / `timeoutMS` | array of camera info |
 
 > On a multi-homed machine prefer `scanAllNetworkInterfaces()`: it broadcasts from each interface in turn, so it does not only find cameras on the default-route subnet.
+
+## 14. SDK version
+
+| Interface | Function | Parameters | Returns |
+| --- | --- | --- | --- |
+| `simou3_get_version(int* major, int* minor, int* patch)` | Read the SDK version numbers | three outputs; any of them may be `nullptr` | none |
+| `simou3_get_version_string()` | Read the SDK version string | none | e.g. `"0.5.1"` |
+
+Both are free functions in the `movesense` namespace, not members of `Simou3Camera`.

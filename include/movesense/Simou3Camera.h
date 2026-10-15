@@ -39,6 +39,7 @@ public:
     int triggerFrame();
 
     int getCameraType(int& type);
+    int getDepthUnitMm(double& unitMm);
     int setStereoExposure(unsigned expus);
     int getStereoExposure(unsigned& expus);
 
@@ -103,6 +104,12 @@ public:
 
     int setRGBCalibData(unsigned char* data, int len = calib::kRgbCalibBytes);
     int getRGBCalibData(unsigned char* data, int len = calib::kRgbCalibBytes);
+
+    int setStereoCalibData(const calib::StereoCalibration& calibration);
+    int getStereoCalibData(calib::StereoCalibration& calibration);
+
+    int setRGBCalibData(const calib::RgbCalibration& calibration);
+    int getRGBCalibData(calib::RgbCalibration& calibration);
 
     int setFrameRate(int fps);
     int getFrameRate(int& fps);

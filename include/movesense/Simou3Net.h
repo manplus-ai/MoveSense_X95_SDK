@@ -4,6 +4,8 @@
 #pragma once
 #include "Simou3Types.h"
 
+#include <atomic>
+
 namespace movesense {
 
 class Simou3Net {
@@ -15,6 +17,7 @@ public:
 
     bool connectTcp(const std::string& ip, int port, bool noDelay = true);
     int recvBlock(void* buf, int len);
+    int recvStream(void* buf, int len, const std::atomic<bool>& running);
     int sendBlock(const void* buf, int len);
 
     bool openUdp(int recvTimeoutMs = 0);
@@ -23,6 +26,7 @@ public:
     int sendTo(const std::string& ip, int port, const void* buf, int len);
     int recvFrom(void* buf, int len, std::string* senderIp = nullptr, int* senderPort = nullptr);
 
+    void shutdownSock();
     void closeSock();
     bool valid() const;
 

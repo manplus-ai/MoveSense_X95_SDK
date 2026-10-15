@@ -26,6 +26,7 @@ public:
 
     int triggerFrame();
     int getCameraType(int& type);
+    int getDepthUnitMm(double& unitMm);
 
     int setStereoExposure(unsigned expus);
     int getStereoExposure(unsigned& expus);

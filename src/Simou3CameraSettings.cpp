@@ -8,6 +8,7 @@
 #include <cstring>
 
 #define CMD_TYPE_GET_CAMERA_TYPE 0x0019
+#define CMD_TYPE_GET_DEPTH_UNIT 0x001C
 
 #define CMD_TYPE_SET_IP 0x0009
 #define CMD_TYPE_GET_IP 0x000A
@@ -184,15 +185,72 @@ int Simou3CameraSettings::getCameraType(int& type)
     return ret;
 }
 
+int Simou3CameraSettings::getDepthUnitMm(double& unitMm)
+{
+    unsigned char data[12] = {};
+    int result = ExchangeParameter(CMD_TYPE_GET_DEPTH_UNIT, data, sizeof(data));
+    if (result <= 0) {
+        return result;
+    }
+
+    double value = 0.0;
+    memcpy(&value, data + 4, sizeof(value));
+    if (!(value > 0.0)) {
+        return SIMOU3_ERR_INFO_UNAVAILABLE;
+    }
+
+    unitMm = value;
+    return result;
+}
+
 int Simou3CameraSettings::setTriggerOut(int out)
 {
-    (void)out;
-    return SIMOU3_ERR_NOT_SUPPORTED;
+    if (out != 0 && out != 1) {
+        return SIMOU3_ERR_CONFIG_INVALID;
+    }
+
+    const unsigned short cmdLen = sizeof(out);
+    int ret = sendCmd(CMD_TYPE_SET_TRIGGER_OUT, cmdLen, &out);
+    if (ret <= 0) {
+        return ret;
+    }
+
+    int current = -1;
+    ret = mSock.recvBlock(&current, cmdLen);
+    if (ret <= 0) {
+        return ret;
+    }
+    if (current == out) {
+        return ret;
+    }
+    if (out == 1 && current == 0) {
+        int mode = -1;
+        int modeRet = getTriggerMode(mode);
+        if (modeRet > 0 && mode == kTriggerModeExternal) {
+            return ret;
+        }
+    }
+    return SIMOU3_ERR_TRIGGER_REJECTED;
 }
+
 int Simou3CameraSettings::getTriggerOut(int& out)
 {
-    (void)out;
-    return SIMOU3_ERR_NOT_SUPPORTED;
+    const unsigned short cmdLen = sizeof(out);
+    int ret = sendGetCmd(CMD_TYPE_GET_TRIGGER_OUT, cmdLen);
+    if (ret <= 0) {
+        return ret;
+    }
+
+    int current = -1;
+    ret = mSock.recvBlock(&current, cmdLen);
+    if (ret <= 0) {
+        return ret;
+    }
+    if (current != 0 && current != 1) {
+        return SIMOU3_ERR_TRIGGER_REJECTED;
+    }
+    out = current;
+    return ret;
 }
 
 int Simou3CameraSettings::triggerFrame()
