@@ -105,6 +105,11 @@ public:
     int setRGBCalibData(unsigned char* data, int len = calib::kRgbCalibBytes);
     int getRGBCalibData(unsigned char* data, int len = calib::kRgbCalibBytes);
 
+    int setStereoCalibData(unsigned char* data, int len, const calib::ImuCalibration* imu);
+    int getStereoCalibData(unsigned char* data, int len, calib::ImuCalibration* imu);
+    int setRGBCalibData(unsigned char* data, int len, const calib::ImuCalibration* imu);
+    int getRGBCalibData(unsigned char* data, int len, calib::ImuCalibration* imu);
+
     int setStereoCalibData(const calib::StereoCalibration& calibration);
     int getStereoCalibData(calib::StereoCalibration& calibration);
 

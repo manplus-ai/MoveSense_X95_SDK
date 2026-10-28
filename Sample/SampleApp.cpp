@@ -133,10 +133,22 @@ void DrawSeg(cv::Mat& bgr, const std::vector<DetectionBox>& dets, int coordW, in
         int x2 = (int)(b.x2 * sx) - ox;
         int y2 = (int)(b.y2 * sy) - oy;
         bool clipped = false;
-        if (x1 < 0) { x1 = 0; clipped = true; }
-        if (y1 < 0) { y1 = 0; clipped = true; }
-        if (x2 > bgr.cols) { x2 = bgr.cols; clipped = true; }
-        if (y2 > bgr.rows) { y2 = bgr.rows; clipped = true; }
+        if (x1 < 0) {
+            x1 = 0;
+            clipped = true;
+        }
+        if (y1 < 0) {
+            y1 = 0;
+            clipped = true;
+        }
+        if (x2 > bgr.cols) {
+            x2 = bgr.cols;
+            clipped = true;
+        }
+        if (y2 > bgr.rows) {
+            y2 = bgr.rows;
+            clipped = true;
+        }
         if (x2 <= x1 || y2 <= y1) {
             continue;
         }

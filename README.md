@@ -1,18 +1,11 @@
 # MoveSense X95 SDK
 
-> **Status: 0.5.1 — early release.** The API is **not** stable yet and
+> **Status: 0.5.2 — early release.** The API is **not** stable yet and
 > breaking changes are expected before 1.0.
 
-Cross-platform (Linux / Windows) C++ SDK for the MoveSense X95-series
-active / passive stereo depth camera. The active variant pairs two IR
-global-shutter sensors (with an 850 nm filter) and a DOE speckle projector
-for depth ranging; depth is computed on the
-device and streamed to the host. A separate RGB stream is provided; its
-calibration is used **only** for point-cloud coloring and does not take part
-in ranging. An on-board IMU (~200 Hz) is streamed alongside the images
-(up to 25 Hz), which makes the camera suitable for VIO / SLAM / point-cloud work.
+Cross-platform (Linux / Windows) C++ SDK for MoveSense X95 cameras. It provides image, depth, and raw IMU data access, along with camera settings, calibration parameters, device information, and network configuration interfaces. RGB interfaces apply to models equipped with an RGB camera.
 
-The host talks to the camera over Ethernet using a private protocol:
+The SDK uses the following network channels:
 
 | Channel | Transport | Purpose                                    |
 | ------- | --------- | ------------------------------------------ |
@@ -23,17 +16,19 @@ The host talks to the camera over Ethernet using a private protocol:
 
 API reference: [doc/API_EN.md](doc/API_EN.md) (中文: [doc/API_CN.md](doc/API_CN.md)).
 
+Calibration parameters: [doc/CALIBRATION_EN.md](doc/CALIBRATION_EN.md) (中文: [doc/CALIBRATION_CN.md](doc/CALIBRATION_CN.md)).
+
 ## Layout
 
 ```
 MoveSense_X95_SDK/
 ├── include/movesense/       Public headers
 │   ├── Simou3Camera.h       camera API (umbrella header)
-│   ├── Simou3CalibLayout.h  calibration blob field offsets
+│   ├── Simou3CalibLayout.h  calibration structures and layout
 │   └── ...                  types, settings, transfer, scan, net
 ├── src/                SDK implementation
-├── doc/                API reference (API_EN.md / API_CN.md)
-├── Sample/             Example program (depends on OpenCV, display only)
+├── doc/                API and calibration parameter reference (English / Chinese)
+├── Sample/             Image acquisition, camera control, and calibration printing
 ├── cmake/              Package config template
 ├── CMakeLists.txt
 └── win_build.bat       One-click Windows build (Visual Studio)
@@ -43,9 +38,7 @@ MoveSense_X95_SDK/
 
 - CMake ≥ 3.10 and a C++17 compiler.
 - **The SDK library has no third-party dependencies.**
-- The `Sample` example is **off by default**. Enable it with
-  `-DMOVESENSE_BUILD_SAMPLE=ON`; it uses OpenCV (via `find_package`) for image
-  display only. The SDK library itself never depends on OpenCV.
+- `Sample` uses OpenCV for image display and processing. The SDK library itself does not depend on OpenCV.
 
 ## Build & Install
 
@@ -62,7 +55,7 @@ Installed layout (relative to `CMAKE_INSTALL_PREFIX`, default `/usr/local`):
 
 ```
 include/movesense/*.h                         public headers
-lib/libMoveSense_X95_SDK.so(.0.5)(.0.5.1)     shared library
+lib/libMoveSense_X95_SDK.so(.0.5)(.0.5.2)     shared library
 lib/cmake/MoveSense_X95_SDK/*.cmake           package config (for find_package)
 ```
 
@@ -72,7 +65,9 @@ installed, run `sudo make uninstall` from the build directory.
 
 The `Sample` example is **not built by default**. Add
 `-DMOVESENSE_BUILD_SAMPLE=ON` to the cmake step to build it (requires OpenCV);
-the binary is produced at `bin/Sample`.
+on Linux, the binary is produced at `bin/Sample` inside the build directory.
+
+After the camera opens and the first frame arrives, the example prints stereo and available RGB calibration, including IMU noise, time offset, raw-camera extrinsics, and all four intrinsic matrices.
 
 Windows (builds with whichever of Visual Studio 2017 / 2019 is installed,
 each in x64 + x32, Debug + Release):
@@ -99,8 +94,8 @@ target_link_libraries(your_app PRIVATE MoveSense::X95_SDK)
 If installed to a non-standard prefix, point CMake at it with
 `-DCMAKE_PREFIX_PATH=<install-prefix>`.
 
-On Windows, `win_build.bat` only builds the libraries (no install, no
-find_package). Consume them directly: add `include/` to your include path,
+On Windows, `win_build.bat` builds the SDK libraries and also builds Sample
+when OpenCV is found; it does not install the SDK. To use the SDK directly, add `include/` to your include path,
 link against `MoveSense_X95_SDK.lib`, and ship `MoveSense_X95_SDK.dll` next to
 your executable.
 
@@ -112,4 +107,3 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) and
 ---
 
 中文说明见 [README_CN.md](README_CN.md)。
-更完整的 API 使用说明将在后续阶段补充。

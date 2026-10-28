@@ -16,6 +16,11 @@ constexpr int kDistortionFloats = 8;
 constexpr int kRotationFloats = 9;
 constexpr int kTranslationFloats = 3;
 constexpr int kImuSegmentFloats = 17;
+constexpr int kImuIntrinsicsFloats = 36;
+constexpr int kImuExtensionHeaderBytes = 8;
+constexpr unsigned int kImuExtensionTag = 0x314d5549u;
+constexpr int kStereoExtendedCalibBytes = kStereoCalibBytes + kImuExtensionHeaderBytes + kImuIntrinsicsFloats * 4;
+constexpr int kRgbExtendedCalibBytes = kRgbCalibBytes + kImuExtensionHeaderBytes + kImuIntrinsicsFloats * 4;
 
 constexpr int kStereoLeftIntrinsics = 0;
 constexpr int kStereoLeftInverseRectifyRowMajor = 4;
@@ -65,6 +70,11 @@ struct ImuCalibration {
     float timeshiftMs = 0.0f;
     float rotation[kRotationFloats] = { 0.0f };
     float translationMm[kTranslationFloats] = { 0.0f };
+    float accelM[kRotationFloats] = { 0.0f };
+    float gyroM[kRotationFloats] = { 0.0f };
+    float gyroA[kRotationFloats] = { 0.0f };
+    float gyroC[kRotationFloats] = { 0.0f };
+    bool hasIntrinsics = false;
 };
 
 struct StereoCamera {

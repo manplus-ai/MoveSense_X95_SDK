@@ -20,50 +20,60 @@ const int ROI_ORIGIN_X = 0;
 const int ROI_ORIGIN_Y = 0;
 const int ROI_SIZE = 64;
 
-void PrintIntrinsics(const char* label, const float* v)
+void PrintIntrinsics(const char* label, const calib::Intrinsics& value)
 {
-    printf("  %-10s fx=%.3f fy=%.3f cx=%.3f cy=%.3f\n", label, v[0], v[1], v[2], v[3]);
+    printf("  %s fx=%.9g fy=%.9g cx=%.9g cy=%.9g px\n", label, value.fx, value.fy, value.cx, value.cy);
 }
 
-void PrintDistortion(const char* label, const float* v)
+void PrintDistortion(const char* label, const float* values)
 {
-    printf("  %-10s", label);
-    for (int i = 0; i < calib::kDistortionFloats; ++i) {
-        printf(" %.6f", v[i]);
+    printf("  %s", label);
+    for (int index = 0; index < calib::kDistortionFloats; index++) {
+        printf(" %.9g", values[index]);
     }
     printf("\n");
 }
 
-void PrintMatrix3x3(const char* label, const float* v)
+void PrintMatrix3x3(const char* label, const float* values)
 {
-    printf("  %-10s [%.5f %.5f %.5f; %.5f %.5f %.5f; %.5f %.5f %.5f]\n", label, v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8]);
+    printf("  %s\n", label);
+    for (int row = 0; row < 3; row++) {
+        printf("    [%.9g %.9g %.9g]\n", values[row * 3], values[row * 3 + 1], values[row * 3 + 2]);
+    }
 }
 
-void PrintImuSegment(const float* seg)
+void PrintImuCalibration(const calib::ImuCalibration& imu, const char* cameraFrame)
 {
-    bool allFinite = true;
-    bool anyNonZero = false;
-    for (int i = 0; i < calib::kImuSegmentFloats; ++i) {
-        if (!std::isfinite(seg[i])) {
-            allFinite = false;
-            break;
-        }
-        if (seg[i] != 0.0f) {
-            anyNonZero = true;
-        }
+    printf("  imu.hasIntrinsics=%s\n", imu.hasIntrinsics ? "true" : "false");
+    bool valid = std::isfinite(imu.gyroNoiseDensity) && imu.gyroNoiseDensity > 0.0f && std::isfinite(imu.gyroRandomWalk) &&
+                 imu.gyroRandomWalk > 0.0f && std::isfinite(imu.accelNoiseDensity) && imu.accelNoiseDensity > 0.0f &&
+                 std::isfinite(imu.accelRandomWalk) && imu.accelRandomWalk > 0.0f && std::isfinite(imu.timeshiftMs);
+    for (float value : imu.rotation) {
+        valid = valid && std::isfinite(value);
     }
-
-    if (!allFinite || !anyNonZero) {
-        printf("  %-10s not calibrated (%s)\n", "imu:", allFinite ? "all zero" : "non-finite");
+    for (float value : imu.translationMm) {
+        valid = valid && std::isfinite(value);
+    }
+    if (!valid) {
+        printf("  IMU calibration unavailable\n");
         return;
     }
-
-    printf("  %-10s gyro_nd=%.3e gyro_rw=%.3e acc_nd=%.3e acc_rw=%.3e\n", "imu noise:", seg[calib::kImuGyroNoiseDensity],
-        seg[calib::kImuGyroRandomWalk], seg[calib::kImuAccelNoiseDensity], seg[calib::kImuAccelRandomWalk]);
-    printf("  %-10s %.4f ms\n", "imu ts:", seg[calib::kImuTimeshiftMs]);
-    PrintMatrix3x3("imu R:", seg + calib::kImuRotationRowMajor);
-    printf("  %-10s [%.4f %.4f %.4f] mm\n", "imu t:", seg[calib::kImuTranslationMm + 0], seg[calib::kImuTranslationMm + 1],
-        seg[calib::kImuTranslationMm + 2]);
+    printf("  imu.gyroNoiseDensity=%.9g rad/s/sqrt(Hz)\n", imu.gyroNoiseDensity);
+    printf("  imu.gyroRandomWalk=%.9g rad/s^2/sqrt(Hz)\n", imu.gyroRandomWalk);
+    printf("  imu.accelNoiseDensity=%.9g m/s^2/sqrt(Hz)\n", imu.accelNoiseDensity);
+    printf("  imu.accelRandomWalk=%.9g m/s^3/sqrt(Hz)\n", imu.accelRandomWalk);
+    printf("  imu.timeshiftMs=%.9g ms (t_imu = t_camera + shift)\n", imu.timeshiftMs);
+    printf("  IMU extrinsics: IMU -> %s\n", cameraFrame);
+    PrintMatrix3x3("imu.rotation:", imu.rotation);
+    printf("  imu.translationMm=[%.9g %.9g %.9g] mm\n", imu.translationMm[0], imu.translationMm[1], imu.translationMm[2]);
+    if (!imu.hasIntrinsics) {
+        printf("  IMU intrinsic matrices unavailable\n");
+        return;
+    }
+    PrintMatrix3x3("imu.accelM:", imu.accelM);
+    PrintMatrix3x3("imu.gyroM:", imu.gyroM);
+    PrintMatrix3x3("imu.gyroA ((rad/s)/(m/s^2)):", imu.gyroA);
+    PrintMatrix3x3("imu.gyroC:", imu.gyroC);
 }
 
 const char* RoiStreamName(int stream)
@@ -121,43 +131,46 @@ bool CameraSession::ScanAndSelect()
 
 void CameraSession::PrintCalibration()
 {
-    float stereo[calib::kStereoCalibFloats] = { 0 };
-    if (m_cam->getStereoCalibData(reinterpret_cast<unsigned char*>(stereo), calib::kStereoCalibBytes) <= 0) {
-        printf("[Sample] getStereoCalibData failed\n");
-        return;
+    calib::StereoCalibration stereo;
+    const int stereoResult = m_cam->getStereoCalibData(stereo);
+    if (stereoResult > 0) {
+        printf("\n===== Stereo calibration =====\n");
+        printf("Raw left camera\n");
+        PrintIntrinsics("intrinsics:", stereo.left.intrinsics);
+        PrintDistortion("distortion:", stereo.left.distortion);
+        PrintMatrix3x3("inverseRectify:", stereo.left.inverseRectify);
+        printf("Raw right camera\n");
+        PrintIntrinsics("intrinsics:", stereo.right.intrinsics);
+        PrintDistortion("distortion:", stereo.right.distortion);
+        PrintMatrix3x3("inverseRectify:", stereo.right.inverseRectify);
+        PrintIntrinsics("rectified:", stereo.rectified);
+        printf("  negativeBaselineMm=%.9g mm, baseline=%.9g mm\n", stereo.negativeBaselineMm, std::fabs(stereo.negativeBaselineMm));
+        PrintImuCalibration(stereo.imu, "raw left camera");
+    } else {
+        printf("[Sample] getStereoCalibData failed rc=%d\n", stereoResult);
     }
-
-    printf("\n===== Stereo calibration (%d floats) =====\n", calib::kStereoCalibFloats);
-    PrintIntrinsics("left M1:", stereo + calib::kStereoLeftIntrinsics);
-    PrintDistortion("left D1:", stereo + calib::kStereoLeftDistortion);
-    PrintMatrix3x3("left iR1:", stereo + calib::kStereoLeftInverseRectifyRowMajor);
-    PrintIntrinsics("right M2:", stereo + calib::kStereoRightIntrinsics);
-    PrintDistortion("right D2:", stereo + calib::kStereoRightDistortion);
-    PrintMatrix3x3("right iR2:", stereo + calib::kStereoRightInverseRectifyRowMajor);
-    PrintIntrinsics("rectified:", stereo + calib::kRectifiedFx);
-    printf("  %-10s %.4f mm\n", "baseline:", std::fabs(stereo[calib::kStereoNegativeBaselineMm]));
-    PrintImuSegment(stereo + calib::kStereoImuSegment);
 
     if (m_cameraType == 1) {
-        printf("===== RGB calibration: passive (P) camera has no RGB lens =====\n");
-        return;
+        printf("\n===== RGB calibration: unavailable on a passive camera =====\n");
+    } else {
+        calib::RgbCalibration rgb;
+        const int rgbResult = m_cam->getRGBCalibData(rgb);
+        if (rgbResult > 0) {
+            printf("\n===== RGB calibration =====\n");
+            PrintIntrinsics("raw intrinsics:", rgb.intrinsics);
+            PrintDistortion("distortion:", rgb.distortion);
+            PrintMatrix3x3("inverseRectify:", rgb.inverseRectify);
+            PrintIntrinsics("output intrinsics:", rgb.rectified);
+            printf("  registeredTranslation=[%.9g %.9g %.9g] mm\n", rgb.registeredTranslation[0], rgb.registeredTranslation[1],
+                rgb.registeredTranslation[2]);
+            PrintMatrix3x3("payloadRotation (reserved):", rgb.payloadRotation);
+            PrintImuCalibration(rgb.imu, "raw RGB camera");
+        } else {
+            printf("[Sample] getRGBCalibData failed rc=%d\n", rgbResult);
+        }
     }
-
-    float rgb[calib::kRgbCalibFloats] = { 0 };
-    if (m_cam->getRGBCalibData(reinterpret_cast<unsigned char*>(rgb), calib::kRgbCalibBytes) <= 0) {
-        printf("[Sample] getRGBCalibData failed\n");
-        return;
-    }
-
-    printf("\n===== RGB calibration (%d floats) =====\n", calib::kRgbCalibFloats);
-    PrintIntrinsics("rgb M2:", rgb + calib::kRgbIntrinsics);
-    PrintDistortion("rgb D2:", rgb + calib::kRgbDistortion);
-    PrintMatrix3x3("rgb iR2:", rgb + calib::kRgbInverseRectifyRowMajor);
-    PrintIntrinsics("rectified:", rgb + calib::kRectifiedFx);
-    PrintMatrix3x3("rgb R:", rgb + calib::kRgbRotationRowMajor);
-    printf("  %-10s [%.4f %.4f %.4f] mm\n", "rgb T_reg:", rgb[calib::kRgbTranslationMm + 0], rgb[calib::kRgbTranslationMm + 1],
-        rgb[calib::kRgbTranslationMm + 2]);
-    PrintImuSegment(rgb + calib::kRgbImuSegment);
+    printf("\n");
+    fflush(stdout);
 }
 
 void CameraSession::ApplyDownsample(const ModeSpec& mode)
@@ -184,7 +197,9 @@ bool CameraSession::ApplyRoi(const ModeSpec& mode)
     int rc = m_cam->setRoi(stream, true, x1, y1, x2, y2);
     if (rc <= 0) {
         printf("[Sample] setRoi(%s, [%u,%u]-[%u,%u]) failed rc=%d%s\n", RoiStreamName(mode.m_roiStream), x1, y1, x2, y2, rc,
-            rc == SIMOU3_ERR_ROI_REJECTED ? " (camera rejected)" : rc == SIMOU3_ERR_ROI_INVALID ? " (invalid rect)" : "");
+            rc == SIMOU3_ERR_ROI_REJECTED  ? " (camera rejected)"
+            : rc == SIMOU3_ERR_ROI_INVALID ? " (invalid rect)"
+                                           : "");
         return false;
     }
     m_roiStream = mode.m_roiStream;
@@ -246,6 +261,13 @@ bool CameraSession::Open(const ModeSpec& mode)
     }
     m_opened = true;
 
+    MovesenseFrame firstFrame;
+    if (!m_cam->getFrame(firstFrame, 5000)) {
+        printf("[Sample] No frame received within 5000 ms after opening; calibration is not ready\n");
+        fflush(stdout);
+        Close();
+        return false;
+    }
     PrintCalibration();
 
     m_cam->setStereoAutoExpo(0);

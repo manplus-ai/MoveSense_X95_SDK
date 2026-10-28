@@ -82,6 +82,11 @@ public:
     int setRGBCalibData(unsigned char* data, int len = calib::kRgbCalibBytes);
     int getRGBCalibData(unsigned char* data, int len = calib::kRgbCalibBytes);
 
+    int setStereoCalibData(unsigned char* data, int len, const calib::ImuCalibration* imu);
+    int getStereoCalibData(unsigned char* data, int len, calib::ImuCalibration* imu);
+    int setRGBCalibData(unsigned char* data, int len, const calib::ImuCalibration* imu);
+    int getRGBCalibData(unsigned char* data, int len, calib::ImuCalibration* imu);
+
     int setFrameRate(int fps);
     int getFrameRate(int& fps);
     int setDownsampleMode(int mode);
@@ -111,6 +116,9 @@ public:
     int mPort;
 
 private:
+    int SetCalibrationData(
+        unsigned short setCommand, unsigned short getCommand, unsigned char* data, int length, int prefixBytes, const calib::ImuCalibration* imu);
+    int GetCalibrationData(unsigned short command, unsigned char* data, int length, int prefixBytes, calib::ImuCalibration* imu);
     int ExchangeParameter(unsigned short command, unsigned char* data, unsigned short length);
     int ReadTextParameter(unsigned short command, std::string& value);
     Simou3Net mSock;

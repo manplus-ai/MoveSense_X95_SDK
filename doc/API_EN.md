@@ -34,11 +34,11 @@ TCP connect, send and receive use a 5-second timeout. A request/response on the 
 - Streaming interfaces (`openCamera` / `getFrame` / `getIMU`) use the data channel and require `openCamera` first
 - Parameter interfaces use the control channel and require `openCameraSettings` first
 - The two channels are independent and may be used separately
+- Calibration reads require the camera to be open and data to be ready
 
 ### Channels
 
-`Stereo` refers to the stereo pair (left and right share one parameter set; both ISP pipes are written
-internally); `RGB` refers to the color camera.
+`Stereo` refers to the stereo pair, with one parameter set shared by the left and right cameras; `RGB` refers to the color camera.
 A **passive P-type unit** has no RGB camera: `setRGB*` has no effect on the hardware and the values returned by `getRGB*` are meaningless.
 
 ## 1. Connection and streaming
@@ -63,6 +63,33 @@ A **passive P-type unit** has no RGB camera: `setRGB*` has no effect on the hard
 | `setDropDegradedFrame(bool onoff)` | Set whether incomplete frames are discarded | `onoff` `true` drops partial frames | none |
 | `getIMU(std::vector<Imu>& out, int num)` | Fetch IMU samples | `out` output vector; `num` max samples, default 200; the SDK keeps only the latest 200 samples, so a slow reader loses the oldest | `>0` number of samples |
 | `alignTimeToHost()` | Align the camera clock to the host | none | `>0` success |
+
+### 2.1 Imu Structure
+
+`movesense::Imu` is defined in `include/movesense/Simou3Types.h`. Include `TRANSFER_MODE_IMU` in the subscription mask, then obtain samples through `getIMU`.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `ax` / `ay` / `az` | `int16_t` | Signed raw accelerometer counts along the x / y / z axes |
+| `gx` / `gy` / `gz` | `int16_t` | Signed raw gyroscope counts along the x / y / z axes |
+| `temp` | `int16_t` | Raw temperature count |
+| `timestampUs` | `uint64_t` | IMU sample timestamp in µs |
+
+`getIMU` appends the samples retrieved by the current call to `out`; clear old samples before reusing the same vector. A return value of `0` means no samples are currently available; a negative value means streaming has not started or the read failed.
+
+### 2.2 Converting Raw Six-Axis Values to SI Units
+
+The current X95 IMU configuration uses an accelerometer range of ±16 g and a gyroscope range of ±2000 °/s, with sensitivities of 2048 LSB/g and 16.4 LSB/(°/s), respectively. Using standard gravity `g0 = 9.80665 m/s²`, convert as follows:
+
+```text
+a_measured = (9.80665 / 2048.0) · [ax, ay, az]ᵀ
+w_measured = (π / (180.0 · 16.4)) · [gx, gy, gz]ᵀ
+timestamp_s = 1e-6 · timestampUs
+```
+
+`a_measured` is in m/s², `w_measured` is in rad/s, and `timestamp_s` is in s. If the IMU range changes, use the sensitivity for that range.
+
+These converted measurements have not yet been corrected using IMU intrinsics. The accelerometer measures specific force; its magnitude at rest is normally close to gravitational acceleration, and gravity has not been removed. To correct these measurements using calibration parameters, see Section 5.2 of [Calibration Parameters](CALIBRATION_EN.md). The SDK does not automatically apply calibration parameters to the raw six-axis values returned by `getIMU`.
 
 ## 3. Trigger
 
@@ -102,9 +129,7 @@ A **passive P-type unit** has no RGB camera: `setRGB*` has no effect on the hard
 | getCameraSN(std::string& sn) | Read complete serial number | >0 success |
 | setCameraSN(const std::string& sn) | Validate and persist SN without disconnecting | >0 success |
 
-SN accepts 1 to 63 ASCII letters, digits, underscores or hyphens without truncation. It is stored in /home/Param/CameraProbuctSn using SN, a space and the value. Reads fall back to /usr/local/bin/CameraProbuctSn only when the new file is absent and do not create files. Production supplies hardware_version= and product_model= in /home/Param/device.conf, up to 63 bytes per value. MAC, hardware, model and FPGA setters are not exposed.
-
-Since 0.5.0 these APIs and parameter replies have breaking changes. Update camera and SDK together; legacy fixed-size replies are unsupported.
+SN accepts 1 to 63 ASCII letters, digits, underscores or hyphens without truncation. Hardware version and product model are read-only device information, with up to 63 bytes per value.
 
 ## 5. Stereo exposure and gain
 
@@ -160,7 +185,7 @@ Since 0.5.0 these APIs and parameter replies have breaking changes. Update camer
 | Interface | Function | Parameters | Returns |
 | --- | --- | --- | --- |
 | `setStereoSharpen(bool enable, unsigned strength)` | Set stereo sharpening | `enable` sharpening switch; `strength` in `[0,100]`, where **`50` = the factory-tuned strength**, `0` no sharpening, `100` roughly twice the factory value | `>0` success |
-| `getStereoSharpen(bool& enable, unsigned& strength, unsigned& textureStrength, unsigned& edgeStrength)` | Read stereo sharpening | first two as above; `textureStrength` / `edgeStrength` are the first entries of the actual ISP curves, for diagnostics only | `>0` success |
+| `getStereoSharpen(bool& enable, unsigned& strength, unsigned& textureStrength, unsigned& edgeStrength)` | Read stereo sharpening | first two as above; `textureStrength` / `edgeStrength` are diagnostic values for the actual texture / edge sharpening strength | `>0` success |
 | `setRGBSharpen(bool enable, unsigned strength)` | Set RGB sharpening | same as above | `>0` success |
 | `getRGBSharpen(...)` | Read RGB sharpening | same as above | `>0` success |
 
@@ -181,29 +206,7 @@ Since 0.5.0 these APIs and parameter replies have breaking changes. Update camer
 
 ## 8. Calibration data
 
-| Interface | Function | Parameters | Returns |
-| --- | --- | --- | --- |
-| `setStereoCalibData(unsigned char* data, int len)` | Write stereo calibration data | `data` calibration blob; `len` byte count, default `calib::kStereoCalibBytes` | `>0` success |
-| `getStereoCalibData(unsigned char* data, int len)` | Read stereo calibration data | same as above | `>0` success |
-| `setRGBCalibData(unsigned char* data, int len)` | Write RGB calibration data | `len` defaults to `calib::kRgbCalibBytes` | `>0` success |
-| `getRGBCalibData(unsigned char* data, int len)` | Read RGB calibration data | same as above | `>0` success |
-
-Besides the byte-array interfaces there are struct overloads taking `calib::StereoCalibration` / `calib::RgbCalibration` from `Simou3CalibLayout.h`. The SDK packs the struct into the float array using the calibration layout and calls the byte interfaces above, so the return values are the same.
-
-| Interface | Function | Returns |
-| --- | --- | --- |
-| `setStereoCalibData(const calib::StereoCalibration& c)` | Write stereo calibration (struct) | `>0` success |
-| `getStereoCalibData(calib::StereoCalibration& c)` | Read stereo calibration (struct) | `>0` success |
-| `setRGBCalibData(const calib::RgbCalibration& c)` | Write RGB calibration (struct) | `>0` success |
-| `getRGBCalibData(calib::RgbCalibration& c)` | Read RGB calibration (struct) | `>0` success |
-
-Struct fields:
-
-- `Intrinsics`: `fx` `fy` `cx` `cy`, in pixels.
-- `ImuCalibration`: `gyroNoiseDensity` `gyroRandomWalk` `accelNoiseDensity` `accelRandomWalk` are noise parameters; `timeshiftMs` is the IMU-to-camera time offset in milliseconds; `rotation` is a 3x3 rotation, row-major; `translationMm` is the translation in millimetres.
-- `StereoCamera` (one eye): `intrinsics` raw intrinsics; `inverseRectify` is the 3x3 inverse rectification rotation, row-major; `distortion` holds 8 distortion coefficients.
-- `StereoCalibration`: `left` / `right` are `StereoCamera`; `rectified` holds the rectified intrinsics; `negativeBaselineMm` is the negative baseline length in millimetres; `imu` is an `ImuCalibration`.
-- `RgbCalibration`: `intrinsics` `inverseRectify` `distortion` `rectified` as above; `registeredTranslation` is the registration translation in millimetres; `imu` is an `ImuCalibration`; `reserved` / `reserved46` / `payloadRotation` are reserved or fixed fields: write back what you read (`payloadRotation` defaults to identity).
+See [Calibration Parameters](CALIBRATION_EN.md) for the calibration interfaces, parameter meanings, units, and coordinate relationships.
 
 ## 9. Frame rate and downsampling
 
@@ -218,8 +221,6 @@ Struct fields:
 | `setChunkSize(int bytes)` | Set the TCP chunk size | `bytes` clamped to `[1024, 262144]` | `>0` success |
 | `setRegistrationSwitch(bool onoff)` | Toggle depth-to-color registration | `onoff` `true` enables registration | `>0` success |
 
-> `setStereoDownsample` triggers an internal reconfiguration on the camera; call it last within a group of downsampling settings.
-
 ## 10. ROI
 
 | Interface | Function | Parameters | Returns |
@@ -228,7 +229,7 @@ Struct fields:
 | `getRoi(RoiStream stream, bool& enable, unsigned& x1, unsigned& y1, unsigned& x2, unsigned& y2)` | Read the crop window of one stream | outputs the values currently in effect | `>0` success |
 
 > Depth does not support ROI.
-> Detection boxes (SEG) are still in full-frame coordinates; subtract the ROI origin before drawing.
+> Detection boxes (SEG) use full-image coordinates.
 
 ## 11. DOE projector
 
@@ -249,9 +250,7 @@ Struct fields:
 
 NetworkConfig has string fields ip, netmask and gateway. Submit all three. Only static IPv4 is supported. Masks must be contiguous; network, broadcast, loopback and multicast host addresses are rejected. A nonzero gateway must be a valid host in the same subnet and differ from the camera IP; 0.0.0.0 removes the default gateway. DHCP, DNS and MAC writes are not exposed.
 
-After acknowledgement the camera disconnects ports 5001/5002, completes image cleanup and applies the address and route. Close the old session, create a camera object at the new IP, read back configuration and acquire a frame to confirm application. Unchanged running values are saved without disconnecting. Application failure attempts to restore the previous network and file; acknowledgement does not guarantee later application.
-
-Files: /home/Param/network.conf is dynamic; /home/Param/network.default is the production fallback. Startup fully validates the dynamic file and falls back on absence or corruption. SDK atomically replaces only the dynamic file. Default is 192.168.1.70/24 with gateway 192.168.1.1; the device MAC is preserved.
+A successful return indicates that the request was accepted. Applying a new network address may disconnect the existing session. Reconnect using the new IP and call GetNetworkConfig to confirm the current configuration.
 
 Errors: -105 invalid input, -106 storage failure, -107 unavailable information, -108 configuration busy. Connection errors retain the <=0 convention. A timeout or disconnection is not proof of application; verify at the new address.
 
@@ -274,6 +273,6 @@ Errors: -105 invalid input, -106 storage failure, -107 unavailable information, 
 | Interface | Function | Parameters | Returns |
 | --- | --- | --- | --- |
 | `simou3_get_version(int* major, int* minor, int* patch)` | Read the SDK version numbers | three outputs; any of them may be `nullptr` | none |
-| `simou3_get_version_string()` | Read the SDK version string | none | e.g. `"0.5.1"` |
+| `simou3_get_version_string()` | Read the SDK version string | none | e.g. `"0.5.2"` |
 
 Both are free functions in the `movesense` namespace, not members of `Simou3Camera`.
