@@ -5,6 +5,8 @@
 
 #include "Simou3Internal.h"
 #include "Simou3Log.h"
+
+#include <cmath>
 #include <cstring>
 
 #define CMD_TYPE_GET_CAMERA_TYPE 0x0019
@@ -102,6 +104,73 @@
 namespace movesense {
 
 namespace {
+
+void PackImuIntrinsics(const calib::ImuCalibration& imu, float* values)
+{
+    memcpy(values, imu.accelM, 9 * sizeof(float));
+    memcpy(values + 9, imu.gyroM, 9 * sizeof(float));
+    memcpy(values + 18, imu.gyroA, 9 * sizeof(float));
+    memcpy(values + 27, imu.gyroC, 9 * sizeof(float));
+}
+
+bool IsCalibrationRotation(const float* matrix)
+{
+    for (int row = 0; row < 3; row++) {
+        for (int col = 0; col < 3; col++) {
+            double dot = 0.0;
+            for (int index = 0; index < 3; index++) {
+                dot += static_cast<double>(matrix[row * 3 + index]) * matrix[col * 3 + index];
+            }
+            if (!std::isfinite(dot) || std::fabs(dot - (row == col ? 1.0 : 0.0)) > 1e-3) {
+                return false;
+            }
+        }
+    }
+    const double determinant = static_cast<double>(matrix[0]) * (matrix[4] * matrix[8] - matrix[5] * matrix[7]) -
+                               static_cast<double>(matrix[1]) * (matrix[3] * matrix[8] - matrix[5] * matrix[6]) +
+                               static_cast<double>(matrix[2]) * (matrix[3] * matrix[7] - matrix[4] * matrix[6]);
+    return std::isfinite(determinant) && std::fabs(determinant - 1.0) <= 1e-3;
+}
+
+bool IsValidImuIntrinsics(const float* values)
+{
+    for (int index = 0; index < calib::kImuIntrinsicsFloats; index++) {
+        if (!std::isfinite(values[index])) {
+            return false;
+        }
+    }
+    for (int matrixIndex = 0; matrixIndex < 2; matrixIndex++) {
+        const float* matrix = values + matrixIndex * 9;
+        const double minimum = matrixIndex == 0 ? 0.95 : 0.90;
+        const double maximum = matrixIndex == 0 ? 1.05 : 1.10;
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                const double value = matrix[row * 3 + col];
+                if ((row == col && (value < minimum || value > maximum)) || (col > row && value != 0.0) || (row > col && std::fabs(value) > 0.05)) {
+                    return false;
+                }
+            }
+        }
+    }
+    for (int index = 18; index < 27; index++) {
+        if (std::fabs(values[index]) > 0.02) {
+            return false;
+        }
+    }
+    const float* rotation = values + 27;
+    const double cosine = (static_cast<double>(rotation[0]) + rotation[4] + rotation[8] - 1.0) / 2.0;
+    return IsCalibrationRotation(rotation) && cosine >= std::cos(2.0 * 3.14159265358979323846 / 180.0);
+}
+
+bool IsValidImuSegment(const float* values)
+{
+    for (int index = 0; index < calib::kImuSegmentFloats; index++) {
+        if (!std::isfinite(values[index])) {
+            return false;
+        }
+    }
+    return values[0] > 0.0f && values[1] > 0.0f && values[2] > 0.0f && values[3] > 0.0f && IsCalibrationRotation(values + 5);
+}
 
 unsigned clampIspLevel(unsigned v)
 {
@@ -904,6 +973,165 @@ int Simou3CameraSettings::getRGBCalibData(unsigned char* data, int len)
     return ret;
 }
 
+int Simou3CameraSettings::GetCalibrationData(unsigned short command, unsigned char* data, int length, int prefixBytes, calib::ImuCalibration* imu)
+{
+    if (!data || !imu || length != prefixBytes) {
+        return SIMOU3_ERR_CONFIG_INVALID;
+    }
+
+    *imu = calib::ImuCalibration();
+    const int packetBytes = prefixBytes + calib::kImuExtensionHeaderBytes + calib::kImuIntrinsicsFloats * 4;
+    std::vector<unsigned char> packet(packetBytes, 0);
+    int result = sendGetCmd(command, static_cast<unsigned short>(packetBytes));
+    if (result != packetBytes + 7) {
+        return result <= 0 ? result : -1;
+    }
+    result = mSock.recvBlock(packet.data(), packetBytes);
+    if (result != packetBytes) {
+        return result <= 0 ? result : -1;
+    }
+
+    uint32_t tag = 0;
+    int32_t status = 0;
+    memcpy(&tag, packet.data() + prefixBytes, 4);
+    memcpy(&status, packet.data() + prefixBytes + 4, 4);
+    if (tag != calib::kImuExtensionTag) {
+        return SIMOU3_ERR_NOT_SUPPORTED;
+    }
+    if (status < 0) {
+        return status;
+    }
+    if (status != 0 && status != 1) {
+        return SIMOU3_ERR_CONFIG_INVALID;
+    }
+
+    float prefix[calib::kRgbCalibFloats] = {};
+    memcpy(prefix, packet.data(), prefixBytes);
+    const int imuOffset = prefixBytes == calib::kStereoCalibBytes ? calib::kStereoImuSegment : calib::kRgbImuSegment;
+    const float* segment = prefix + imuOffset;
+    if (status == 1) {
+        float values[calib::kImuIntrinsicsFloats];
+        memcpy(values, packet.data() + prefixBytes + calib::kImuExtensionHeaderBytes, sizeof(values));
+        if (!IsValidImuIntrinsics(values) || !IsValidImuSegment(segment)) {
+            return SIMOU3_ERR_CONFIG_INVALID;
+        }
+        memcpy(imu->accelM, values, 9 * sizeof(float));
+        memcpy(imu->gyroM, values + 9, 9 * sizeof(float));
+        memcpy(imu->gyroA, values + 18, 9 * sizeof(float));
+        memcpy(imu->gyroC, values + 27, 9 * sizeof(float));
+        imu->hasIntrinsics = true;
+    }
+    imu->gyroNoiseDensity = segment[0];
+    imu->gyroRandomWalk = segment[1];
+    imu->accelNoiseDensity = segment[2];
+    imu->accelRandomWalk = segment[3];
+    imu->timeshiftMs = segment[4];
+    memcpy(imu->rotation, segment + 5, sizeof(imu->rotation));
+    memcpy(imu->translationMm, segment + 14, sizeof(imu->translationMm));
+    memcpy(data, packet.data(), prefixBytes);
+    return prefixBytes;
+}
+
+int Simou3CameraSettings::SetCalibrationData(
+    unsigned short setCommand, unsigned short getCommand, unsigned char* data, int length, int prefixBytes, const calib::ImuCalibration* imu)
+{
+    if (!data || !imu || !imu->hasIntrinsics || length != prefixBytes) {
+        return SIMOU3_ERR_CONFIG_INVALID;
+    }
+    float values[calib::kImuIntrinsicsFloats];
+    PackImuIntrinsics(*imu, values);
+    float prefix[calib::kRgbCalibFloats] = {};
+    memcpy(prefix, data, prefixBytes);
+    const int imuOffset = prefixBytes == calib::kStereoCalibBytes ? calib::kStereoImuSegment : calib::kRgbImuSegment;
+    if (!IsValidImuIntrinsics(values) || !IsValidImuSegment(prefix + imuOffset)) {
+        return SIMOU3_ERR_CONFIG_INVALID;
+    }
+
+    std::vector<unsigned char> previous(prefixBytes, 0);
+    calib::ImuCalibration previousImu;
+    int result = GetCalibrationData(getCommand, previous.data(), prefixBytes, prefixBytes, &previousImu);
+    if (result <= 0) {
+        return result;
+    }
+
+    const int packetBytes = prefixBytes + calib::kImuExtensionHeaderBytes + sizeof(values);
+    std::vector<unsigned char> packet(packetBytes, 0);
+    memcpy(packet.data(), data, prefixBytes);
+    const uint32_t tag = calib::kImuExtensionTag;
+    const int32_t requestedStatus = 1;
+    memcpy(packet.data() + prefixBytes, &tag, 4);
+    memcpy(packet.data() + prefixBytes + 4, &requestedStatus, 4);
+    memcpy(packet.data() + prefixBytes + calib::kImuExtensionHeaderBytes, values, sizeof(values));
+    result = sendCmd(setCommand, static_cast<unsigned short>(packetBytes), packet.data());
+    if (result != packetBytes + 7) {
+        return result <= 0 ? result : -1;
+    }
+    result = mSock.recvBlock(packet.data(), packetBytes);
+    if (result != packetBytes) {
+        return result <= 0 ? result : -1;
+    }
+    uint32_t replyTag = 0;
+    int32_t status = 0;
+    memcpy(&replyTag, packet.data() + prefixBytes, 4);
+    memcpy(&status, packet.data() + prefixBytes + 4, 4);
+    if (replyTag != tag || status != 1) {
+        return status < 0 ? status : SIMOU3_ERR_STORAGE_FAILED;
+    }
+
+    std::vector<unsigned char> readBack(prefixBytes, 0);
+    calib::ImuCalibration readImu;
+    result = GetCalibrationData(getCommand, readBack.data(), prefixBytes, prefixBytes, &readImu);
+    if (result <= 0) {
+        return result;
+    }
+    float readValues[calib::kImuIntrinsicsFloats];
+    PackImuIntrinsics(readImu, readValues);
+    if (!readImu.hasIntrinsics || memcmp(readBack.data(), data, prefixBytes) != 0 || memcmp(values, readValues, sizeof(values)) != 0) {
+        return SIMOU3_ERR_STORAGE_FAILED;
+    }
+    return prefixBytes;
+}
+
+int Simou3CameraSettings::setStereoCalibData(unsigned char* data, int len, const calib::ImuCalibration* imu)
+{
+    if (imu && !imu->hasIntrinsics) {
+        const int geometryBytes = calib::kStereoImuSegment * 4;
+        if (!data || len < geometryBytes || len > calib::kStereoCalibBytes) {
+            return SIMOU3_ERR_CONFIG_INVALID;
+        }
+        return setStereoCalibData(data, geometryBytes);
+    }
+    if (!imu) {
+        return setStereoCalibData(data, len);
+    }
+    return SetCalibrationData(CMD_TYPE_SET_STEREO_CALIB_DATA, CMD_TYPE_GET_STEREO_CALIB_DATA, data, len, calib::kStereoCalibBytes, imu);
+}
+
+int Simou3CameraSettings::getStereoCalibData(unsigned char* data, int len, calib::ImuCalibration* imu)
+{
+    return GetCalibrationData(CMD_TYPE_GET_STEREO_CALIB_DATA, data, len, calib::kStereoCalibBytes, imu);
+}
+
+int Simou3CameraSettings::setRGBCalibData(unsigned char* data, int len, const calib::ImuCalibration* imu)
+{
+    if (imu && !imu->hasIntrinsics) {
+        const int geometryBytes = calib::kRgbImuSegment * 4;
+        if (!data || len < geometryBytes || len > calib::kRgbCalibBytes) {
+            return SIMOU3_ERR_CONFIG_INVALID;
+        }
+        return setRGBCalibData(data, geometryBytes);
+    }
+    if (!imu) {
+        return setRGBCalibData(data, len);
+    }
+    return SetCalibrationData(CMD_TYPE_SET_RGB_CALIB_DATA, CMD_TYPE_GET_RGB_CALIB_DATA, data, len, calib::kRgbCalibBytes, imu);
+}
+
+int Simou3CameraSettings::getRGBCalibData(unsigned char* data, int len, calib::ImuCalibration* imu)
+{
+    return GetCalibrationData(CMD_TYPE_GET_RGB_CALIB_DATA, data, len, calib::kRgbCalibBytes, imu);
+}
+
 int Simou3CameraSettings::setFrameRate(int fps)
 {
     unsigned short cmdType = CMD_TYPE_SET_FRAME_RATE;
@@ -1022,9 +1250,15 @@ int Simou3CameraSettings::ReadTextParameter(unsigned short command, std::string&
     return result;
 }
 
-int Simou3CameraSettings::getAppVersion(std::string& app) { return ReadTextParameter(CMD_TYPE_GET_APP_VERSION, app); }
+int Simou3CameraSettings::getAppVersion(std::string& app)
+{
+    return ReadTextParameter(CMD_TYPE_GET_APP_VERSION, app);
+}
 
-int Simou3CameraSettings::getCameraSN(std::string& sn) { return ReadTextParameter(CMD_TYPE_GET_CAMERA_SN, sn); }
+int Simou3CameraSettings::getCameraSN(std::string& sn)
+{
+    return ReadTextParameter(CMD_TYPE_GET_CAMERA_SN, sn);
+}
 
 int Simou3CameraSettings::setCameraSN(const std::string& sn)
 {
@@ -1041,16 +1275,25 @@ int Simou3CameraSettings::setCameraSN(const std::string& sn)
     return ExchangeParameter(CMD_TYPE_SET_CAMERA_SN, data, sizeof(data));
 }
 
-int Simou3CameraSettings::getHardwareVersion(std::string& hardware) { return ReadTextParameter(CMD_TYPE_GET_HARDWARE_VERSION, hardware); }
+int Simou3CameraSettings::getHardwareVersion(std::string& hardware)
+{
+    return ReadTextParameter(CMD_TYPE_GET_HARDWARE_VERSION, hardware);
+}
 
 int Simou3CameraSettings::getProductModelVersion(std::string& product)
 {
     return ReadTextParameter(CMD_TYPE_GET_PRODUCT_MODEL_VERSION, product);
 }
 
-int Simou3CameraSettings::GetKernelVersion(std::string& version) { return ReadTextParameter(0x001A, version); }
+int Simou3CameraSettings::GetKernelVersion(std::string& version)
+{
+    return ReadTextParameter(0x001A, version);
+}
 
-int Simou3CameraSettings::GetCameraLibVersion(std::string& version) { return ReadTextParameter(0x001B, version); }
+int Simou3CameraSettings::GetCameraLibVersion(std::string& version)
+{
+    return ReadTextParameter(0x001B, version);
+}
 
 int Simou3CameraSettings::SetNetworkConfig(const NetworkConfig& config)
 {

@@ -6,8 +6,8 @@
 #include "Simou3Internal.h"
 #include "Simou3Log.h"
 
-#include <cstring>
 #include <cerrno>
+#include <cstring>
 
 #ifndef _WIN32
 #include <fcntl.h>

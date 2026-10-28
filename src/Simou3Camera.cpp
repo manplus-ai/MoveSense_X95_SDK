@@ -328,6 +328,26 @@ int Simou3Camera::getRGBCalibData(unsigned char* data, int len)
 {
     return mSimou3CameraSettings.getRGBCalibData(data, len);
 }
+
+int Simou3Camera::setStereoCalibData(unsigned char* data, int len, const calib::ImuCalibration* imu)
+{
+    return mSimou3CameraSettings.setStereoCalibData(data, len, imu);
+}
+
+int Simou3Camera::getStereoCalibData(unsigned char* data, int len, calib::ImuCalibration* imu)
+{
+    return mSimou3CameraSettings.getStereoCalibData(data, len, imu);
+}
+
+int Simou3Camera::setRGBCalibData(unsigned char* data, int len, const calib::ImuCalibration* imu)
+{
+    return mSimou3CameraSettings.setRGBCalibData(data, len, imu);
+}
+
+int Simou3Camera::getRGBCalibData(unsigned char* data, int len, calib::ImuCalibration* imu)
+{
+    return mSimou3CameraSettings.getRGBCalibData(data, len, imu);
+}
 namespace {
 
 void packIntrinsics(const calib::Intrinsics& value, float* out)
@@ -387,10 +407,9 @@ void unpackStereoCamera(const float* in, calib::StereoCamera& value, int intrins
 int Simou3Camera::setStereoCalibData(const calib::StereoCalibration& calibration)
 {
     float data[calib::kStereoCalibFloats] = { 0.0f };
-    packStereoCamera(calibration.left, data, calib::kStereoLeftIntrinsics, calib::kStereoLeftInverseRectifyRowMajor,
-        calib::kStereoLeftDistortion);
-    packStereoCamera(calibration.right, data, calib::kStereoRightIntrinsics, calib::kStereoRightInverseRectifyRowMajor,
-        calib::kStereoRightDistortion);
+    packStereoCamera(calibration.left, data, calib::kStereoLeftIntrinsics, calib::kStereoLeftInverseRectifyRowMajor, calib::kStereoLeftDistortion);
+    packStereoCamera(
+        calibration.right, data, calib::kStereoRightIntrinsics, calib::kStereoRightInverseRectifyRowMajor, calib::kStereoRightDistortion);
     data[calib::kRectifiedFx] = calibration.rectified.fx;
     data[calib::kRectifiedFy] = calibration.rectified.fy;
     data[calib::kRectifiedCx] = calibration.rectified.cx;
@@ -398,27 +417,31 @@ int Simou3Camera::setStereoCalibData(const calib::StereoCalibration& calibration
     data[calib::kStereoNegativeBaselineMm] = calibration.negativeBaselineMm;
     packImu(calibration.imu, data + calib::kStereoImuSegment);
 
-    return setStereoCalibData(reinterpret_cast<unsigned char*>(data), calib::kStereoCalibBytes);
+    return setStereoCalibData(reinterpret_cast<unsigned char*>(data), calib::kStereoCalibBytes, &calibration.imu);
 }
 
 int Simou3Camera::getStereoCalibData(calib::StereoCalibration& calibration)
 {
     float data[calib::kStereoCalibFloats] = { 0.0f };
-    const int ret = getStereoCalibData(reinterpret_cast<unsigned char*>(data), calib::kStereoCalibBytes);
+    calib::ImuCalibration imu;
+    int ret = getStereoCalibData(reinterpret_cast<unsigned char*>(data), calib::kStereoCalibBytes, &imu);
+    if (ret == SIMOU3_ERR_NOT_SUPPORTED) {
+        ret = getStereoCalibData(reinterpret_cast<unsigned char*>(data), calib::kStereoCalibBytes);
+    }
     if (ret <= 0) {
         return ret;
     }
 
-    unpackStereoCamera(data, calibration.left, calib::kStereoLeftIntrinsics, calib::kStereoLeftInverseRectifyRowMajor,
-        calib::kStereoLeftDistortion);
-    unpackStereoCamera(data, calibration.right, calib::kStereoRightIntrinsics, calib::kStereoRightInverseRectifyRowMajor,
-        calib::kStereoRightDistortion);
+    unpackStereoCamera(data, calibration.left, calib::kStereoLeftIntrinsics, calib::kStereoLeftInverseRectifyRowMajor, calib::kStereoLeftDistortion);
+    unpackStereoCamera(
+        data, calibration.right, calib::kStereoRightIntrinsics, calib::kStereoRightInverseRectifyRowMajor, calib::kStereoRightDistortion);
     calibration.rectified.fx = data[calib::kRectifiedFx];
     calibration.rectified.fy = data[calib::kRectifiedFy];
     calibration.rectified.cx = data[calib::kRectifiedCx];
     calibration.rectified.cy = data[calib::kRectifiedCy];
     calibration.negativeBaselineMm = data[calib::kStereoNegativeBaselineMm];
-    unpackImu(data + calib::kStereoImuSegment, calibration.imu);
+    unpackImu(data + calib::kStereoImuSegment, imu);
+    calibration.imu = imu;
 
     return ret;
 }
@@ -439,13 +462,17 @@ int Simou3Camera::setRGBCalibData(const calib::RgbCalibration& calibration)
     memcpy(data + calib::kRgbTranslationMm, calibration.registeredTranslation, sizeof(calibration.registeredTranslation));
     packImu(calibration.imu, data + calib::kRgbImuSegment);
 
-    return setRGBCalibData(reinterpret_cast<unsigned char*>(data), calib::kRgbCalibBytes);
+    return setRGBCalibData(reinterpret_cast<unsigned char*>(data), calib::kRgbCalibBytes, &calibration.imu);
 }
 
 int Simou3Camera::getRGBCalibData(calib::RgbCalibration& calibration)
 {
     float data[calib::kRgbCalibFloats] = { 0.0f };
-    const int ret = getRGBCalibData(reinterpret_cast<unsigned char*>(data), calib::kRgbCalibBytes);
+    calib::ImuCalibration imu;
+    int ret = getRGBCalibData(reinterpret_cast<unsigned char*>(data), calib::kRgbCalibBytes, &imu);
+    if (ret == SIMOU3_ERR_NOT_SUPPORTED) {
+        ret = getRGBCalibData(reinterpret_cast<unsigned char*>(data), calib::kRgbCalibBytes);
+    }
     if (ret <= 0) {
         return ret;
     }
@@ -461,7 +488,8 @@ int Simou3Camera::getRGBCalibData(calib::RgbCalibration& calibration)
     calibration.reserved46 = data[calib::kRgbReserved46];
     memcpy(calibration.payloadRotation, data + calib::kRgbRotationRowMajor, sizeof(calibration.payloadRotation));
     memcpy(calibration.registeredTranslation, data + calib::kRgbTranslationMm, sizeof(calibration.registeredTranslation));
-    unpackImu(data + calib::kRgbImuSegment, calibration.imu);
+    unpackImu(data + calib::kRgbImuSegment, imu);
+    calibration.imu = imu;
 
     return ret;
 }
@@ -501,9 +529,15 @@ int Simou3Camera::setRegistrationSwitch(bool onoff)
     return mSimou3CameraSettings.setRegistrationSwitch(onoff);
 }
 
-int Simou3Camera::SetNetworkConfig(const NetworkConfig& config) { return mSimou3CameraSettings.SetNetworkConfig(config); }
+int Simou3Camera::SetNetworkConfig(const NetworkConfig& config)
+{
+    return mSimou3CameraSettings.SetNetworkConfig(config);
+}
 
-int Simou3Camera::GetNetworkConfig(NetworkConfig& config) { return mSimou3CameraSettings.GetNetworkConfig(config); }
+int Simou3Camera::GetNetworkConfig(NetworkConfig& config)
+{
+    return mSimou3CameraSettings.GetNetworkConfig(config);
+}
 
 int Simou3Camera::getMacAddress(uint8_t mac[6])
 {
@@ -535,11 +569,20 @@ int Simou3Camera::getProductModelVersion(std::string& product)
     return mSimou3CameraSettings.getProductModelVersion(product);
 }
 
-int Simou3Camera::getAppVersion(std::string& version) { return mSimou3CameraSettings.getAppVersion(version); }
+int Simou3Camera::getAppVersion(std::string& version)
+{
+    return mSimou3CameraSettings.getAppVersion(version);
+}
 
-int Simou3Camera::GetKernelVersion(std::string& version) { return mSimou3CameraSettings.GetKernelVersion(version); }
+int Simou3Camera::GetKernelVersion(std::string& version)
+{
+    return mSimou3CameraSettings.GetKernelVersion(version);
+}
 
-int Simou3Camera::GetCameraLibVersion(std::string& version) { return mSimou3CameraSettings.GetCameraLibVersion(version); }
+int Simou3Camera::GetCameraLibVersion(std::string& version)
+{
+    return mSimou3CameraSettings.GetCameraLibVersion(version);
+}
 
 bool Simou3Camera::isCameraOnline(std::string ip)
 {

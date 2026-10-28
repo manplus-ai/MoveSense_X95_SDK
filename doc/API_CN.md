@@ -20,7 +20,7 @@
 | `-105` `SIMOU3_ERR_CONFIG_INVALID`       | 参数非法(网络配置、SN、触发输出取值等)     |
 | `-106` `SIMOU3_ERR_STORAGE_FAILED`       | 相机持久保存失败                           |
 | `-107` `SIMOU3_ERR_INFO_UNAVAILABLE`     | 相机上无此项信息                           |
-| `-108` `SIMOU3_ERR_CONFIG_BUSY`          | 相机正在改网,稍后重试                     |
+| `-108` `SIMOU3_ERR_CONFIG_BUSY`          | 相机正在改网,稍后重试                      |
 | `-109` `SIMOU3_ERR_CONFIG_APPLY_FAILED`  | 网络配置应用失败                           |
 
 判定成功请用 `ret > 0`,不要用 `ret == 0`。
@@ -34,44 +34,72 @@ TCP 连接、发送、接收统一设 5 秒超时。控制通道(5002)上的请�
 - 取图相关接口(`openCamera` / `getFrame` / `getIMU`)走数据通道,需先 `openCamera`
 - 参数设置类接口走控制通道,需先 `openCameraSettings`
 - 两个通道相互独立,可单独使用
+- 读取标定参数时，相机需已开启且数据就绪
 
 ### 通道概念
 
-`Stereo` 指双目(左右目共用一套参数,内部同时写两个 ISP pipe);`RGB` 指彩色相机。
+`Stereo` 指双目，左右目共用一套参数；`RGB` 指彩色相机。
 **被动式 P 型机**没有 RGB 相机:`setRGB*` 不会作用到硬件,`getRGB*` 的返回值没有实际意义。
 
 ## 一、连接与数据流
 
-| 接口名称                           | 功能                       | 参数含义                                                                           | 返回值        |
-| ---------------------------------- | -------------------------- | ---------------------------------------------------------------------------------- | ------------- |
-| `Simou3Camera(std::string ip)`   | 构造相机对象               | `ip` 相机 IP,默认 `192.168.1.70`                                               | —            |
-| `isCameraOnline()`               | 探测相机是否在线           | 无                                                                                 | `true` 在线 |
-| `isCameraOnline(std::string ip)` | 探测指定 IP 的相机是否在线 | `ip` 目标 IP                                                                     | `true` 在线 |
+| 接口名称                           | 功能                       | 参数含义                                                                                                                                                                  | 返回值        |
+| ---------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `Simou3Camera(std::string ip)`   | 构造相机对象               | `ip` 相机 IP,默认 `192.168.1.70`                                                                                                                                      | —            |
+| `isCameraOnline()`               | 探测相机是否在线           | 无                                                                                                                                                                        | `true` 在线 |
+| `isCameraOnline(std::string ip)` | 探测指定 IP 的相机是否在线 | `ip` 目标 IP                                                                                                                                                            | `true` 在线 |
 | `openCamera(int mode)`           | 打开数据流并开始接收       | `mode` 订阅掩码,由 `transfer_mode_def.h` 的掩码宏按位或组成,如 `TRANSFER_MODE_L_RECTIFIED \| TRANSFER_MODE_DEPTH`(等价于 `(1u << TRANSFER_MODE_*_BIT)`,位宏仍保留) | `>0` 成功   |
-| `closeCamera()`                  | 关闭数据流                 | 无                                                                                 | `>0` 成功   |
-| `openCameraSettings()`           | 打开控制通道(端口 5002)    | 无                                                                                 | `>0` 成功   |
-| `closeCameraSettings()`          | 关闭控制通道               | 无                                                                                 | `>0` 成功   |
+| `closeCamera()`                  | 关闭数据流                 | 无                                                                                                                                                                        | `>0` 成功   |
+| `openCameraSettings()`           | 打开控制通道(端口 5002)    | 无                                                                                                                                                                        | `>0` 成功   |
+| `closeCameraSettings()`          | 关闭控制通道               | 无                                                                                                                                                                        | `>0` 成功   |
 
 ## 二、取图与 IMU
 
-| 接口名称                                         | 功能                   | 参数含义                                     | 返回值               |
-| ------------------------------------------------ | ---------------------- | -------------------------------------------- | -------------------- |
-| `getFrame(MovesenseFrame& out)`                | 取一帧(非阻塞,当前没有新帧立即返回 `false`) | `out` 输出帧                               | `true` 取到        |
-| `getFrame(MovesenseFrame& out, int timeoutMs)` | 取一帧(指定超时)       | `out` 输出帧;`timeoutMs` 超时毫秒,`0` 不等待,`<0` 一直等到有帧或关闭        | `true` 取到        |
-| `getStats()`                                   | 取收流统计             | 无                                           | `Simou3Stats` 结构 |
-| `setDropDegradedFrame(bool onoff)`             | 设置是否丢弃不完整帧   | `onoff` `true` 丢弃残帧                  | 无                   |
-| `getIMU(std::vector<Imu>& out, int num)`       | 取 IMU 数据            | `out` 输出数组;`num` 最多取几条,默认 200;SDK 最多缓存最近 200 条,取得慢会丢最旧的 | `>0` 实际条数      |
-| `alignTimeToHost()`                            | 将相机时间对齐到主机   | 无                                           | `>0` 成功          |
+| 接口名称                                         | 功能                                          | 参数含义                                                                              | 返回值               |
+| ------------------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------- |
+| `getFrame(MovesenseFrame& out)`                | 取一帧(非阻塞,当前没有新帧立即返回 `false`) | `out` 输出帧                                                                        | `true` 取到        |
+| `getFrame(MovesenseFrame& out, int timeoutMs)` | 取一帧(指定超时)                              | `out` 输出帧;`timeoutMs` 超时毫秒,`0` 不等待,`<0` 一直等到有帧或关闭          | `true` 取到        |
+| `getStats()`                                   | 取收流统计                                    | 无                                                                                    | `Simou3Stats` 结构 |
+| `setDropDegradedFrame(bool onoff)`             | 设置是否丢弃不完整帧                          | `onoff` `true` 丢弃残帧                                                           | 无                   |
+| `getIMU(std::vector<Imu>& out, int num)`       | 取 IMU 数据                                   | `out` 输出数组;`num` 最多取几条,默认 200;SDK 最多缓存最近 200 条,取得慢会丢最旧的 | `>0` 实际条数      |
+| `alignTimeToHost()`                            | 将相机时间对齐到主机                          | 无                                                                                    | `>0` 成功          |
+
+### 2.1 Imu 结构体
+
+`movesense::Imu` 定义于 `include/movesense/Simou3Types.h`。订阅模式须包含 `TRANSFER_MODE_IMU`，再通过 `getIMU` 获取样本。
+
+| 字段                     | 类型         | 含义                                |
+| ------------------------ | ------------ | ----------------------------------- |
+| `ax` / `ay` / `az` | `int16_t`  | 加速度计 x / y / z 轴有符号原始计数 |
+| `gx` / `gy` / `gz` | `int16_t`  | 陀螺仪 x / y / z 轴有符号原始计数   |
+| `temp`                 | `int16_t`  | 温度原始计数                        |
+| `timestampUs`          | `uint64_t` | IMU 样本时间戳，单位 µs            |
+
+`getIMU` 向 `out` 追加本次取到的样本；重复使用同一个数组时，应先清空旧样本。返回 `0` 表示当前没有可取的样本，返回负数表示未开流或读取失败。
+
+### 2.2 六轴原始值换算为 SI 单位
+
+当前 X95 的 IMU 配置为加速度计 ±16 g、陀螺仪 ±2000 °/s，对应灵敏度分别为 2048 LSB/g 和 16.4 LSB/(°/s)。以 `g0 = 9.80665 m/s²` 作为标准重力加速度，换算公式为：
+
+```text
+a_measured = (9.80665 / 2048.0) · [ax, ay, az]ᵀ
+w_measured = (π / (180.0 · 16.4)) · [gx, gy, gz]ᵀ
+timestamp_s = 1e-6 · timestampUs
+```
+
+`a_measured` 单位为 m/s²，`w_measured` 单位为 rad/s，`timestamp_s` 单位为 s。若 IMU 量程改变，应使用对应量程的灵敏度。
+
+换算后仍为未经过内参矫正的量测；加速度计量测为比力，静止时模长通常接近重力加速度，尚未去除重力。使用标定参数矫正这些量测，详见[标定参数说明](CALIBRATION_CN.md)第 5.2 节。SDK 不会自动将标定参数应用到 `getIMU` 返回的六轴原始值。
 
 ## 三、触发
 
-| 接口名称                      | 功能           | 参数含义                                                                                                                                                                                                                                   | 返回值                                                |
-| ----------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
-| `setTriggerMode(int mode)`  | 设触发模式     | `mode` `kTriggerModeAuto`(`0`)自动触发:相机按 `setFrameRate` 的帧率连续出图;`kTriggerModeSoft`(`1`)软触发:每调一次 `triggerFrame()` 出一帧;`kTriggerModeExternal`(`2`)外触发:本机不出触发信号,由主相机的触发信号驱动出图 | `>0` 成功 / `-103` 取值非法 / `-104` 被相机拒绝 |
-| `getTriggerMode(int& mode)` | 读当前触发模式 | `mode` 输出,取值同上                                                                                                                                                                                                                     | `>0` 成功                                           |
-| `setTriggerOut(int out)`   | 设置触发脉冲输出 | `out` `0`关闭输出,`1`开启输出;外触发模式下请求仍会被接受,但有效值始终为 `0` | `>0` 成功 / `-105` 取值非法 / `-104` 被相机拒绝 |
-| `getTriggerOut(int& out)`  | 读取有效触发脉冲输出状态 | `out` 输出,取值为 `0` 或 `1`;外触发模式始终返回 `0` | `>0` 成功 |
-| `triggerFrame()`            | 软触发出一帧   | 无                                                                                                                                                                                                                                         | `>0` 成功 / `-104` 被相机拒绝                     |
+| 接口名称                      | 功能                     | 参数含义                                                                                                                                                                                                                                   | 返回值                                                |
+| ----------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| `setTriggerMode(int mode)`  | 设触发模式               | `mode` `kTriggerModeAuto`(`0`)自动触发:相机按 `setFrameRate` 的帧率连续出图;`kTriggerModeSoft`(`1`)软触发:每调一次 `triggerFrame()` 出一帧;`kTriggerModeExternal`(`2`)外触发:本机不出触发信号,由主相机的触发信号驱动出图 | `>0` 成功 / `-103` 取值非法 / `-104` 被相机拒绝 |
+| `getTriggerMode(int& mode)` | 读当前触发模式           | `mode` 输出,取值同上                                                                                                                                                                                                                     | `>0` 成功                                           |
+| `setTriggerOut(int out)`    | 设置触发脉冲输出         | `out` `0`关闭输出,`1`开启输出;外触发模式下请求仍会被接受,但有效值始终为 `0`                                                                                                                                                        | `>0` 成功 / `-105` 取值非法 / `-104` 被相机拒绝 |
+| `getTriggerOut(int& out)`   | 读取有效触发脉冲输出状态 | `out` 输出,取值为 `0` 或 `1`;外触发模式始终返回 `0`                                                                                                                                                                                | `>0` 成功                                           |
+| `triggerFrame()`            | 软触发出一帧             | 无                                                                                                                                                                                                                                         | `>0` 成功 / `-104` 被相机拒绝                     |
 
 > 触发模式只在相机本次运行期间有效,相机重启后恢复为自动触发;断开重连**不会**重置,所以每次连接请在 `openCamera` 之前显式设置一次。
 > 切换触发模式时,相机会丢弃尚未发出的帧。
@@ -88,22 +116,20 @@ TCP 连接、发送、接收统一设 5 秒超时。控制通道(5002)上的请�
 
 ## 四、设备信息
 
-| 接口                                                         | 功能                            | 返回值               |
-| ------------------------------------------------------------ | ------------------------------- | -------------------- |
-| getCameraType(int& type)                                     | 读取机型，0=A，1=P，2=AP        | >0 成功              |
-| getDepthUnitMm(double& unitMm)                               | 读取深度单位：每个深度计数代表的毫米数，取自相机配置 `Dpu.depth_unit_mm` | >0 成功，-107 无数据 |
-| getAppVersion(std::string& version)                          | 读取 LocalApp 版本              | >0 成功              |
-| GetKernelVersion(std::string& version)                       | 读取运行中的 Linux 内核版本     | >0 成功              |
-| GetCameraLibVersion(std::string& version)                    | 读取 libMoveSenseCamera.so 版本 | >0 成功              |
-| getMacAddress(std::string& mac)                              | 读取 eth0 当前 MAC，只读        | >0 成功              |
-| getHardwareVersion(std::string& hardware)                    | 读取生产配置硬件版本            | >0 成功，-107 无数据 |
-| getProductModelVersion(std::string& product)                 | 读取生产配置产品型号            | >0 成功，-107 无数据 |
-| getCameraSN(std::string& sn)                                 | 读取完整 SN                     | >0 成功              |
-| setCameraSN(const std::string& sn)                           | 校验并持久保存 SN，无需断开     | >0 成功              |
+| 接口                                         | 功能                                                                       | 返回值               |
+| -------------------------------------------- | -------------------------------------------------------------------------- | -------------------- |
+| getCameraType(int& type)                     | 读取机型，0=A，1=P，2=AP                                                   | >0 成功              |
+| getDepthUnitMm(double& unitMm)               | 读取深度单位：每个深度计数代表的毫米数，取自相机配置 `Dpu.depth_unit_mm` | >0 成功，-107 无数据 |
+| getAppVersion(std::string& version)          | 读取 LocalApp 版本                                                         | >0 成功              |
+| GetKernelVersion(std::string& version)       | 读取运行中的 Linux 内核版本                                                | >0 成功              |
+| GetCameraLibVersion(std::string& version)    | 读取 libMoveSenseCamera.so 版本                                            | >0 成功              |
+| getMacAddress(std::string& mac)              | 读取 eth0 当前 MAC，只读                                                   | >0 成功              |
+| getHardwareVersion(std::string& hardware)    | 读取生产配置硬件版本                                                       | >0 成功，-107 无数据 |
+| getProductModelVersion(std::string& product) | 读取生产配置产品型号                                                       | >0 成功，-107 无数据 |
+| getCameraSN(std::string& sn)                 | 读取完整 SN                                                                | >0 成功              |
+| setCameraSN(const std::string& sn)           | 校验并持久保存 SN，无需断开                                                | >0 成功              |
 
-SN 为 1～63 个 ASCII 字母、数字、下划线或连字符，不截断。SN 保存到 /home/Param/CameraProbuctSn，文件内容为 SN 加空格再加号码；新文件不存在时只读旧 /usr/local/bin/CameraProbuctSn，不在读取时补写。硬件版本与产品型号由生产写 /home/Param/device.conf，分别使用 hardware_version= 与 product_model=，每项最多 63 字节。SDK 不暴露 MAC、型号、硬件版本或 FPGA 版本写入接口。
-
-0.5.0 起接口与参数回包有破坏性变更，需配套更新相机与 SDK，不支持旧版定长回包。
+SN 为 1～63 个 ASCII 字母、数字、下划线或连字符，不截断。硬件版本与产品型号为只读设备信息，每项最多 63 字节。
 
 ## 五、双目曝光与增益
 
@@ -111,7 +137,7 @@ SN 为 1～63 个 ASCII 字母、数字、下划线或连字符，不截断。SN
 | ----------------------------------------------- | ------------------ | ------------------------------------------------------ | ----------- |
 | `setStereoAutoExpo(int onoff)`                | 双目自动曝光开关   | `onoff` `1` 开 / `0` 关                          | `>0` 成功 |
 | `setStereoAutoExpoDesiredBin(int brightness)` | 设自动曝光目标亮度 | `brightness` 目标亮度值                              | `>0` 成功 |
-| `setStereoExposure(unsigned expus)`           | 设双目曝光时间     | `expus` 微秒,内部钳进有效区间                        | `>0` 成功 |
+| `setStereoExposure(unsigned expus)`           | 设双目曝光时间     | `expus` 微秒，按有效范围限制                         | `>0` 成功 |
 | `getStereoExposure(unsigned& expus)`          | 读双目曝光时间     | `expus` 输出微秒                                     | `>0` 成功 |
 | `setStereoGain(float gain)`                   | 设双目增益         | `gain` 单位 gain_128:`128` = 1 倍,`2048` = 16 倍 | `>0` 成功 |
 | `getStereoGain(float& gain)`                  | 读双目增益         | `gain` 输出,同上单位                                 | `>0` 成功 |
@@ -159,7 +185,7 @@ SN 为 1～63 个 ASCII 字母、数字、下划线或连字符，不截断。SN
 | 接口名称                                                                                                  | 功能       | 参数含义                                                                                                                     | 返回值      |
 | --------------------------------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | `setStereoSharpen(bool enable, unsigned strength)`                                                      | 设双目锐化 | `enable` 锐化开关;`strength` 范围 `[0,100]`,**`50` = 相机出厂调优强度**,`0` 不锐化,`100` 约为出厂值的 2 倍 | `>0` 成功 |
-| `getStereoSharpen(bool& enable, unsigned& strength, unsigned& textureStrength, unsigned& edgeStrength)` | 读双目锐化 | 前两项同上;`textureStrength` / `edgeStrength` 为 ISP 内部实际曲线首档值,仅供诊断                                         | `>0` 成功 |
+| `getStereoSharpen(bool& enable, unsigned& strength, unsigned& textureStrength, unsigned& edgeStrength)` | 读双目锐化 | 前两项同上；`textureStrength` / `edgeStrength` 为实际纹理 / 边缘锐化强度诊断值                                           | `>0` 成功 |
 | `setRGBSharpen(bool enable, unsigned strength)`                                                         | 设中目锐化 | 同上                                                                                                                         | `>0` 成功 |
 | `getRGBSharpen(...)`                                                                                    | 读中目锐化 | 同上                                                                                                                         | `>0` 成功 |
 
@@ -180,44 +206,20 @@ SN 为 1～63 个 ASCII 字母、数字、下划线或连字符，不截断。SN
 
 ## 八、标定数据
 
-| 接口名称                                             | 功能           | 参数含义                                                            | 返回值      |
-| ---------------------------------------------------- | -------------- | ------------------------------------------------------------------- | ----------- |
-| `setStereoCalibData(unsigned char* data, int len)` | 写双目标定数据 | `data` 标定 blob;`len` 字节数,默认 `calib::kStereoCalibBytes` | `>0` 成功 |
-| `getStereoCalibData(unsigned char* data, int len)` | 读双目标定数据 | 同上                                                                | `>0` 成功 |
-| `setRGBCalibData(unsigned char* data, int len)`    | 写中目标定数据 | `len` 默认 `calib::kRgbCalibBytes`                              | `>0` 成功 |
-| `getRGBCalibData(unsigned char* data, int len)`    | 读中目标定数据 | 同上                                                                | `>0` 成功 |
-
-除字节数组接口外,还提供结构体重载,参数是 `Simou3CalibLayout.h` 里的 `calib::StereoCalibration` / `calib::RgbCalibration`。SDK 内部按标定布局把结构体打包成 float 数组后调用上面的字节接口,返回值相同。
-
-| 接口名称                                                   | 功能                 | 返回值      |
-| ---------------------------------------------------------- | -------------------- | ----------- |
-| `setStereoCalibData(const calib::StereoCalibration& c)`  | 写双目标定(结构体) | `>0` 成功 |
-| `getStereoCalibData(calib::StereoCalibration& c)`        | 读双目标定(结构体) | `>0` 成功 |
-| `setRGBCalibData(const calib::RgbCalibration& c)`        | 写中目标定(结构体) | `>0` 成功 |
-| `getRGBCalibData(calib::RgbCalibration& c)`              | 读中目标定(结构体) | `>0` 成功 |
-
-结构体字段:
-
-- `Intrinsics`:`fx` `fy` `cx` `cy`,单位像素。
-- `ImuCalibration`:`gyroNoiseDensity` `gyroRandomWalk` `accelNoiseDensity` `accelRandomWalk` 为噪声参数;`timeshiftMs` 为 IMU 与相机的时间偏移,单位毫秒;`rotation` 为 3x3 旋转,行优先;`translationMm` 为平移,单位毫米。
-- `StereoCamera`(单目):`intrinsics` 原始内参;`inverseRectify` 为 3x3 逆矫正旋转,行优先;`distortion` 为 8 个畸变系数。
-- `StereoCalibration`:`left` / `right` 为 `StereoCamera`;`rectified` 为矫正后的内参;`negativeBaselineMm` 为负的基线长度,单位毫米;`imu` 为 `ImuCalibration`。
-- `RgbCalibration`:`intrinsics` `inverseRectify` `distortion` `rectified` 含义同上;`registeredTranslation` 为配准平移,单位毫米;`imu` 为 `ImuCalibration`;`reserved` / `reserved46` / `payloadRotation` 为保留或固定字段,读出后原样写回即可(`payloadRotation` 默认单位阵)。
+标定接口、参数含义、单位和坐标关系见[标定参数说明](CALIBRATION_CN.md)。
 
 ## 九、帧率与降采样
 
-| 接口名称                              | 功能                 | 参数含义                                                   | 返回值      |
-| ------------------------------------- | -------------------- | ---------------------------------------------------------- | ----------- |
-| `setFrameRate(int fps)`             | 设帧率               | `fps` 目标帧率,有效范围 `[1,25]`,范围外相机忽略并保持原值(仍返回成功);实际上限受订阅内容与降采样状态约束                | `>0` 成功 |
-| `getFrameRate(int& fps)`            | 读帧率               | `fps` 输出                                               | `>0` 成功 |
-| `setDownsampleMode(int mode)`       | 设降采样方式         | `0` 前降采样(算法前降分辨率)/ `1` 后降采样(发送前缩图) | `>0` 成功 |
-| `setDepthDownsample(bool onoff)`    | 深度图降采样开关     | `onoff` `true` 开启                                    | `>0` 成功 |
-| `setRGBDownsample(bool onoff)`      | 中目降采样开关       | `onoff` `true` 开启                                    | `>0` 成功 |
-| `setStereoDownsample(bool onoff)`   | 双目降采样开关       | `onoff` `true` 开启                                    | `>0` 成功 |
-| `setChunkSize(int bytes)`           | 设 TCP 分包大小      | `bytes` 钳进 `[1024, 262144]`                          | `>0` 成功 |
-| `setRegistrationSwitch(bool onoff)` | 深度到彩色的配准开关 | `onoff` `true` 开启配准                                | `>0` 成功 |
-
-> `setStereoDownsample` 会触发相机内部重新配置,建议放在一组降采样设置的最后调用。
+| 接口名称                              | 功能                 | 参数含义                                                                                                     | 返回值      |
+| ------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------ | ----------- |
+| `setFrameRate(int fps)`             | 设帧率               | `fps` 目标帧率,有效范围 `[1,25]`,范围外相机忽略并保持原值(仍返回成功);实际上限受订阅内容与降采样状态约束 | `>0` 成功 |
+| `getFrameRate(int& fps)`            | 读帧率               | `fps` 输出                                                                                                 | `>0` 成功 |
+| `setDownsampleMode(int mode)`       | 设降采样方式         | `0` 前降采样(算法前降分辨率)/ `1` 后降采样(发送前缩图)                                                   | `>0` 成功 |
+| `setDepthDownsample(bool onoff)`    | 深度图降采样开关     | `onoff` `true` 开启                                                                                      | `>0` 成功 |
+| `setRGBDownsample(bool onoff)`      | 中目降采样开关       | `onoff` `true` 开启                                                                                      | `>0` 成功 |
+| `setStereoDownsample(bool onoff)`   | 双目降采样开关       | `onoff` `true` 开启                                                                                      | `>0` 成功 |
+| `setChunkSize(int bytes)`           | 设 TCP 分包大小      | `bytes` 钳进 `[1024, 262144]`                                                                            | `>0` 成功 |
+| `setRegistrationSwitch(bool onoff)` | 深度到彩色的配准开关 | `onoff` `true` 开启配准                                                                                  | `>0` 成功 |
 
 ## 十、ROI
 
@@ -227,14 +229,14 @@ SN 为 1～63 个 ASCII 字母、数字、下划线或连字符，不截断。SN
 | `getRoi(RoiStream stream, bool& enable, unsigned& x1, unsigned& y1, unsigned& x2, unsigned& y2)` | 读某一路的裁窗 | 输出当前生效值                                                                                                                          | `>0` 成功                                           |
 
 > 深度图不支持 ROI。
-> 检测框(SEG)坐标仍是全画幅坐标,绘制前需减去 ROI 原点。
+> 检测框(SEG)坐标以完整图像为基准。
 
 ## 十一、DOE 投射器
 
-| 接口名称                          | 功能         | 参数含义                                                                       | 返回值      |
-| --------------------------------- | ------------ | ------------------------------------------------------------------------------ | ----------- |
-| `setDOEPower(unsigned power)`   | 设 DOE 功率  | `power` `[0,255]`,超出按 `255`;`0` 关闭,其余每 32 为一档,共 8 档,档位越高开的通道越多 | `>0` 成功 |
-| `getDOEPower(unsigned& power)`  | 读 DOE 功率  | `power` 输出,为最近一次设置的 `[0,255]` 值                                     | `>0` 成功 |
+| 接口名称                         | 功能        | 参数含义                                                                                      | 返回值      |
+| -------------------------------- | ----------- | --------------------------------------------------------------------------------------------- | ----------- |
+| `setDOEPower(unsigned power)`  | 设 DOE 功率 | `power` `[0,255]`,超出按 `255`;`0` 关闭,其余每 32 为一档,共 8 档,档位越高开的通道越多 | `>0` 成功 |
+| `getDOEPower(unsigned& power)` | 读 DOE 功率 | `power` 输出,为最近一次设置的 `[0,255]` 值                                                | `>0` 成功 |
 
 > 被动式 P 型机没有 DOE,设置会被相机忽略。
 
@@ -248,31 +250,29 @@ SN 为 1～63 个 ASCII 字母、数字、下划线或连字符，不截断。SN
 
 NetworkConfig 包含字符串 ip、netmask、gateway，三项必须完整提交。使用 IPv4 静态地址；掩码连续且主机地址不得为网络地址、广播地址、回环或组播地址。网关须同网段有效且不同于相机 IP，0.0.0.0 表示无默认网关。不开放 DHCP/DNS 或 MAC 修改。
 
-SetNetworkConfig 成功确认后，相机断开 5001/5002，完成图像清理，再应用地址与路由。调用者关闭旧会话、使用新 IP 创建对象，GetNetworkConfig 回读并取图验证最终生效。未变更运行值时仅保存、不主动断开。应用失败尝试恢复原网络与原文件，确认回包不表示后续应用已完成。
-
-配置路径：/home/Param/network.conf 为动态文件，/home/Param/network.default 为生产默认文件。每次启动先完整校验动态文件；缺失或损坏则使用 default。SDK 原子替换动态文件，不改 default。默认地址为 192.168.1.70/24，网关为 192.168.1.1，MAC 保持设备自身地址。
+设置成功表示请求已接受。网络地址生效时原连接可能断开，需使用新 IP 重新连接，并通过 GetNetworkConfig 确认当前配置。
 
 错误：-105 参数非法，-106 持久保存失败，-107 信息不可用，-108 改网忙。所有连接类错误保留 <=0 返回约定。不得把超时或断开当作应用成功，需通过新地址回读确认。
 
 ## 十三、相机发现
 
-| 接口名称                                                     | 功能                 | 参数含义                                          | 返回值       |
-| ------------------------------------------------------------ | -------------------- | ------------------------------------------------- | ------------ |
+| 接口名称                                                     | 功能                 | 参数含义                                                       | 返回值                               |
+| ------------------------------------------------------------ | -------------------- | -------------------------------------------------------------- | ------------------------------------ |
 | `scanSingleCamera(std::string ip, CameraInfo& cameraInfo)` | 探测指定 IP 的相机   | `ip` 目标;`cameraInfo` 输出信息(ip、mac、gateway、netmask) | `0` 成功,`<0` 失败(超时或无回应) |
-| `scanAllCameras(std::string broadcastIP)`                  | 在指定广播域扫描     | `broadcastIP` 广播地址,默认 `255.255.255.255` | 相机信息数组 |
-| `scanAllNetworkInterfaces()`                               | 遍历本机所有网卡扫描 | 无                                                | 相机信息数组 |
-| `setScanTimeout(int timeoutMS)`                            | 设扫描超时           | `timeoutMS` 毫秒                                | 无           |
-| `setScanPort(int port)`                                    | 设扫描端口           | `port` 默认 5004                                | 无           |
-| `scanCameras(...)`(静态)                                   | 静态版广播扫描       | `broadcastIP` / `port` / `timeoutMS`        | 相机信息数组 |
-| `scanCamerasAllInterfaces(...)`(静态)                      | 静态版全网卡扫描     | `port` / `timeoutMS`                          | 相机信息数组 |
+| `scanAllCameras(std::string broadcastIP)`                  | 在指定广播域扫描     | `broadcastIP` 广播地址,默认 `255.255.255.255`              | 相机信息数组                         |
+| `scanAllNetworkInterfaces()`                               | 遍历本机所有网卡扫描 | 无                                                             | 相机信息数组                         |
+| `setScanTimeout(int timeoutMS)`                            | 设扫描超时           | `timeoutMS` 毫秒                                             | 无                                   |
+| `setScanPort(int port)`                                    | 设扫描端口           | `port` 默认 5004                                             | 无                                   |
+| `scanCameras(...)`(静态)                                   | 静态版广播扫描       | `broadcastIP` / `port` / `timeoutMS`                     | 相机信息数组                         |
+| `scanCamerasAllInterfaces(...)`(静态)                      | 静态版全网卡扫描     | `port` / `timeoutMS`                                       | 相机信息数组                         |
 
 > 多网卡机器建议用 `scanAllNetworkInterfaces()`,它会逐个网卡发广播,避免只扫到默认路由所在网段。
 
 ## 十四、SDK 版本
 
-| 接口名称                                              | 功能             | 参数含义                                | 返回值         |
-| ----------------------------------------------------- | ---------------- | --------------------------------------- | -------------- |
-| `simou3_get_version(int* major, int* minor, int* patch)` | 读 SDK 版本号  | 三个输出,可传 `nullptr` 忽略其中某项  | 无             |
-| `simou3_get_version_string()`                         | 读 SDK 版本字符串 | 无                                      | 如 `"0.5.1"` |
+| 接口名称                                                   | 功能              | 参数含义                               | 返回值         |
+| ---------------------------------------------------------- | ----------------- | -------------------------------------- | -------------- |
+| `simou3_get_version(int* major, int* minor, int* patch)` | 读 SDK 版本号     | 三个输出,可传 `nullptr` 忽略其中某项 | 无             |
+| `simou3_get_version_string()`                            | 读 SDK 版本字符串 | 无                                     | 如 `"0.5.2"` |
 
 两个函数是 `movesense` 命名空间下的自由函数,不是 `Simou3Camera` 的成员。
