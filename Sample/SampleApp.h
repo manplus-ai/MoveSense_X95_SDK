@@ -41,7 +41,7 @@ private:
     ImuReceiver m_imuReceiver;
 
     int m_tbStereoAuto = 0, m_tbStereoExpo = 5000, m_tbStereoGain = 4;
-    int m_tbRgbAuto = 0, m_tbRgbExpo = 5000, m_tbRgbGain = 4;
+    int m_tbRgbAuto = 1, m_tbRgbExpo = 5000, m_tbRgbGain = 4;
     int m_tbStereoMaxExpo = 65535, m_tbStereoMaxGain = 16;
     int m_tbRgbMaxExpo = 65535, m_tbRgbMaxGain = 16;
     int m_tbFps = 15;

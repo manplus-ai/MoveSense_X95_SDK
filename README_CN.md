@@ -1,6 +1,6 @@
 # MoveSense X95 SDK
 
-> **状态:0.5.2 — 早期版本。** API **尚不稳定**,1.0 之前预计会有破坏性变更。
+> **状态:0.6.0 — 早期版本。** API **尚不稳定**,1.0 之前预计会有破坏性变更。
 
 用于 MoveSense X95 系列相机的跨平台（Linux / Windows）C++ SDK，提供图像、深度和原始 IMU 数据读取，以及相机参数、标定参数、设备信息和网络配置接口。RGB 接口适用于具备 RGB 镜头的机型。
 
@@ -13,7 +13,9 @@ SDK 使用以下网络通道：
 | 5000 | UDP  | 时间同步                 |
 | 5004 | UDP  | 设备扫描                 |
 
-接口速查见 [doc/API_CN.md](doc/API_CN.md)(English: [doc/API_EN.md](doc/API_EN.md))。
+C++ API 说明见 [中文版](doc/API_CN.md)和[英文版](doc/API_EN.md)。
+
+C API 说明见 [中文版](doc/C_API_CN.md)和[英文版](doc/C_API_EN.md)。
 
 标定参数说明见 [doc/CALIBRATION_CN.md](doc/CALIBRATION_CN.md)(English: [doc/CALIBRATION_EN.md](doc/CALIBRATION_EN.md))。
 
@@ -54,7 +56,7 @@ sudo make install          # 默认装到 /usr/local
 
 ```
 include/movesense/*.h                         公开头文件
-lib/libMoveSense_X95_SDK.so(.0.5)(.0.5.2)     动态库
+lib/libMoveSense_X95_SDK.so(.0.6)(.0.6.0)     动态库
 lib/cmake/MoveSense_X95_SDK/*.cmake           package config(供 find_package)
 ```
 
@@ -77,22 +79,22 @@ win_build.bat
 
 ## 在你的工程里使用
 
-安装后,通过 CMake 的 `find_package` 引入:
+安装 SDK 后，C 和 C++ 工程使用同一个 CMake 链接目标。
 
 ```cmake
 find_package(MoveSense_X95_SDK REQUIRED)
 target_link_libraries(your_app PRIVATE MoveSense::X95_SDK)
 ```
 
-```cpp
-#include <movesense/Simou3Camera.h>
-```
+使用自定义安装路径时，设置 `-DCMAKE_PREFIX_PATH=<安装前缀>`。
 
-装到非标准前缀时,用 `-DCMAKE_PREFIX_PATH=<安装前缀>` 指过去。
+| 语言 | 头文件 | 示例 |
+| --- | --- | --- |
+| C++ | `<movesense/Simou3Camera.h>` | [连续取 10 帧深度图](doc/API_CN.md#调用顺序) |
+| C | `<movesense/Simou3CameraC.h>` | [连续取 10 帧深度图](doc/C_API_CN.md#调用顺序) |
 
-Windows 侧 `win_build.bat` 编译 SDK 库，找到 OpenCV 时也会编译 Sample，不执行安装。直接使用 SDK 时:
-把 `include/` 加进头文件搜索路径,链接 `MoveSense_X95_SDK.lib`,并把
-`MoveSense_X95_SDK.dll` 放到可执行文件旁边。
+直接使用 `win_build.bat` 的产物时，把 `include/` 加入头文件搜索路径，
+链接与应用位数和构建配置匹配的 `.lib`，并把对应 DLL 放在可执行文件旁。
 
 ## 许可
 

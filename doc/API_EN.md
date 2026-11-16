@@ -31,10 +31,51 @@ TCP connect, send and receive use a 5-second timeout. A request/response on the 
 
 ### Call order
 
-- Streaming interfaces (`openCamera` / `getFrame` / `getIMU`) use the data channel and require `openCamera` first
+- Call `openCamera` before reading frames with `getFrame` or IMU data with `getIMU`. Call `closeCamera` when finished.
 - Parameter interfaces use the control channel and require `openCameraSettings` first
 - The two channels are independent and may be used separately
 - Calibration reads require the camera to be open and data to be ready
+- The following example opens the stream once and reads 10 consecutive depth frames from a camera in auto trigger mode. Each read waits up to two seconds. Replace the example IP with your camera address and see the [README](../README.md#use-it-in-your-project) for build instructions.
+
+```cpp
+#include <movesense/Simou3Camera.h>
+#include <movesense/transfer_mode_def.h>
+
+#include <iostream>
+
+int main()
+{
+    movesense::Simou3Camera camera("192.168.1.70");
+    if (camera.openCamera(TRANSFER_MODE_DEPTH) <= 0) {
+        std::cerr << "Failed to open the depth stream.\n";
+        return 1;
+    }
+
+    constexpr int kFrameCount = 10;
+    constexpr int kFrameTimeoutMs = 2000;
+    movesense::MovesenseFrame frame;
+    int captured = 0;
+    for (; captured < kFrameCount; ++captured) {
+        if (!camera.getFrame(frame, kFrameTimeoutMs)) {
+            std::cerr << "Failed to receive frame " << captured + 1 << ".\n";
+            break;
+        }
+
+        const auto& depth = frame.depth();
+        if (!depth.has || depth.data.empty()) {
+            std::cerr << "Frame " << captured + 1 << " has no depth image.\n";
+            break;
+        }
+
+        std::cout << "Depth frame " << captured + 1 << ": "
+                  << depth.width << " x " << depth.height << '\n';
+    }
+
+    camera.closeCamera();
+    return captured == kFrameCount ? 0 : 1;
+}
+```
+
 
 ### Channels
 
@@ -273,6 +314,6 @@ Errors: -105 invalid input, -106 storage failure, -107 unavailable information, 
 | Interface | Function | Parameters | Returns |
 | --- | --- | --- | --- |
 | `simou3_get_version(int* major, int* minor, int* patch)` | Read the SDK version numbers | three outputs; any of them may be `nullptr` | none |
-| `simou3_get_version_string()` | Read the SDK version string | none | e.g. `"0.5.2"` |
+| `simou3_get_version_string()` | Read the SDK version string | none | Version string of the linked SDK |
 
 Both are free functions in the `movesense` namespace, not members of `Simou3Camera`.

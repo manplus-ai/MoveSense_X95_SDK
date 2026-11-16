@@ -31,10 +31,51 @@ TCP 连接、发送、接收统一设 5 秒超时。控制通道(5002)上的请�
 
 ### 调用顺序
 
-- 取图相关接口(`openCamera` / `getFrame` / `getIMU`)走数据通道,需先 `openCamera`
+- 使用 `getFrame` 取图或 `getIMU` 读取 IMU 前，先调用 `openCamera` 打开数据通道，用完后调用 `closeCamera`。
 - 参数设置类接口走控制通道,需先 `openCameraSettings`
 - 两个通道相互独立,可单独使用
 - 读取标定参数时，相机需已开启且数据就绪
+- 以下示例从自动触发模式的相机连续获取 10 帧深度图。只开流一次，每帧最多等待 2 秒。将示例 IP 改为相机的实际地址，编译方法见 [README](../README_CN.md#在你的工程里使用)。
+
+```cpp
+#include <movesense/Simou3Camera.h>
+#include <movesense/transfer_mode_def.h>
+
+#include <iostream>
+
+int main()
+{
+    movesense::Simou3Camera camera("192.168.1.70");
+    if (camera.openCamera(TRANSFER_MODE_DEPTH) <= 0) {
+        std::cerr << "Failed to open the depth stream.\n";
+        return 1;
+    }
+
+    constexpr int kFrameCount = 10;
+    constexpr int kFrameTimeoutMs = 2000;
+    movesense::MovesenseFrame frame;
+    int captured = 0;
+    for (; captured < kFrameCount; ++captured) {
+        if (!camera.getFrame(frame, kFrameTimeoutMs)) {
+            std::cerr << "Failed to receive frame " << captured + 1 << ".\n";
+            break;
+        }
+
+        const auto& depth = frame.depth();
+        if (!depth.has || depth.data.empty()) {
+            std::cerr << "Frame " << captured + 1 << " has no depth image.\n";
+            break;
+        }
+
+        std::cout << "Depth frame " << captured + 1 << ": "
+                  << depth.width << " x " << depth.height << '\n';
+    }
+
+    camera.closeCamera();
+    return captured == kFrameCount ? 0 : 1;
+}
+```
+
 
 ### 通道概念
 
@@ -273,6 +314,6 @@ NetworkConfig 包含字符串 ip、netmask、gateway，三项必须完整提交�
 | 接口名称                                                   | 功能              | 参数含义                               | 返回值         |
 | ---------------------------------------------------------- | ----------------- | -------------------------------------- | -------------- |
 | `simou3_get_version(int* major, int* minor, int* patch)` | 读 SDK 版本号     | 三个输出,可传 `nullptr` 忽略其中某项 | 无             |
-| `simou3_get_version_string()`                            | 读 SDK 版本字符串 | 无                                     | 如 `"0.5.2"` |
+| `simou3_get_version_string()`                            | 读 SDK 版本字符串 | 无                                     | 当前链接的 SDK 版本字符串 |
 
 两个函数是 `movesense` 命名空间下的自由函数,不是 `Simou3Camera` 的成员。
