@@ -1,6 +1,6 @@
 # MoveSense X95 SDK
 
-> **Status: 0.5.2 — early release.** The API is **not** stable yet and
+> **Status: 0.6.0 — early release.** The API is **not** stable yet and
 > breaking changes are expected before 1.0.
 
 Cross-platform (Linux / Windows) C++ SDK for MoveSense X95 cameras. It provides image, depth, and raw IMU data access, along with camera settings, calibration parameters, device information, and network configuration interfaces. RGB interfaces apply to models equipped with an RGB camera.
@@ -14,7 +14,9 @@ The SDK uses the following network channels:
 | 5000    | UDP       | Time synchronization                       |
 | 5004    | UDP       | Device discovery                           |
 
-API reference: [doc/API_EN.md](doc/API_EN.md) (中文: [doc/API_CN.md](doc/API_CN.md)).
+See the C++ API reference in [English](doc/API_EN.md) and [Chinese](doc/API_CN.md).
+
+See the C API reference in [English](doc/C_API_EN.md) and [Chinese](doc/C_API_CN.md).
 
 Calibration parameters: [doc/CALIBRATION_EN.md](doc/CALIBRATION_EN.md) (中文: [doc/CALIBRATION_CN.md](doc/CALIBRATION_CN.md)).
 
@@ -55,7 +57,7 @@ Installed layout (relative to `CMAKE_INSTALL_PREFIX`, default `/usr/local`):
 
 ```
 include/movesense/*.h                         public headers
-lib/libMoveSense_X95_SDK.so(.0.5)(.0.5.2)     shared library
+lib/libMoveSense_X95_SDK.so(.0.6)(.0.6.0)     shared library
 lib/cmake/MoveSense_X95_SDK/*.cmake           package config (for find_package)
 ```
 
@@ -80,24 +82,22 @@ win_build.bat
 
 ## Use it in your project
 
-After installing, consume the SDK from CMake via `find_package`:
+After installing the SDK, link the same CMake target from C or C++.
 
 ```cmake
 find_package(MoveSense_X95_SDK REQUIRED)
 target_link_libraries(your_app PRIVATE MoveSense::X95_SDK)
 ```
 
-```cpp
-#include <movesense/Simou3Camera.h>
-```
+For a custom install location, set `-DCMAKE_PREFIX_PATH=<install-prefix>`.
 
-If installed to a non-standard prefix, point CMake at it with
-`-DCMAKE_PREFIX_PATH=<install-prefix>`.
+| Language | Header | Example |
+| --- | --- | --- |
+| C++ | `<movesense/Simou3Camera.h>` | [Read 10 depth frames](doc/API_EN.md#call-order) |
+| C | `<movesense/Simou3CameraC.h>` | [Read 10 depth frames](doc/C_API_EN.md#call-order) |
 
-On Windows, `win_build.bat` builds the SDK libraries and also builds Sample
-when OpenCV is found; it does not install the SDK. To use the SDK directly, add `include/` to your include path,
-link against `MoveSense_X95_SDK.lib`, and ship `MoveSense_X95_SDK.dll` next to
-your executable.
+To use the `win_build.bat` output directly, add `include/` to your include path,
+link the SDK `.lib` for your architecture and build configuration, and place the matching DLL beside the executable.
 
 ## License
 

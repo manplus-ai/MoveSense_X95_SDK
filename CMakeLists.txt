@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 if(POLICY CMP0091)
     cmake_policy(SET CMP0091 NEW)
 endif()
-project(MoveSense_X95_SDK VERSION 0.5.2 LANGUAGES CXX)
+project(MoveSense_X95_SDK VERSION 0.6.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,6 +18,7 @@ endif()
 
 add_library(MoveSense_X95_SDK SHARED
     src/Simou3Camera.cpp
+    src/Simou3CameraC.cpp
     src/Simou3Net.cpp
     src/Simou3CameraTransfer.cpp
     src/Simou3CameraSettings.cpp
@@ -32,6 +33,7 @@ target_include_directories(MoveSense_X95_SDK PUBLIC
     PRIVATE src)
 
 target_compile_definitions(MoveSense_X95_SDK PRIVATE
+    MOVESENSE_X95_SDK_BUILD
     MOVESENSE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
     MOVESENSE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
     MOVESENSE_VERSION_PATCH=${PROJECT_VERSION_PATCH})

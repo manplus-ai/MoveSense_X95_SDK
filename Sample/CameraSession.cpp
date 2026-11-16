@@ -274,9 +274,7 @@ bool CameraSession::Open(const ModeSpec& mode)
     m_cam->setStereoExposure((unsigned)DEFAULT_EXPO_US);
     m_cam->setStereoGain((float)(DEFAULT_GAIN_X * GAIN_UNIT));
     if (mode.m_hasRgb) {
-        m_cam->setRGBAutoExpo(0);
-        m_cam->setRGBExposure((unsigned)DEFAULT_EXPO_US);
-        m_cam->setRGBGain((float)(DEFAULT_GAIN_X * GAIN_UNIT));
+        m_cam->setRGBAutoExpo(1);
     }
     printf("[Sample] Opened: mode=%s mask=0x%x type=%d\n", mode.name.c_str(), mode.Mask(), m_cameraType);
     return true;
