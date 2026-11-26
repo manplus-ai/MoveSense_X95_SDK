@@ -45,9 +45,6 @@ TCP 请求使用 SDK 现有超时机制。数据通道的 `ms_x95_camera_get_fra
 
 ### 调用顺序
 
-- 创建相机句柄后再打开通道。
-- 取图或读取 IMU 前打开数据通道，读写相机参数前打开参数通道。
-- 帧句柄可重复用于取帧。使用结束后关闭通道并调用对应的销毁函数。销毁前等待使用该句柄的调用结束。
 - 以下纯 C 示例从自动触发模式的相机连续获取 10 帧深度图。只开流一次，每帧最多等待 2 秒，编译方式见 README。
 
 ```c
@@ -132,7 +129,9 @@ int main(void)
 | `ms_x95_camera_align_time_to_host(ms_x95_camera_t* camera)`                                                                                                                     | 与主机对时               | `camera` 相机句柄                                                                               | `>0` 成功                          |
 | `ms_x95_camera_get_depth_unit_mm(ms_x95_camera_t* camera, double* unit_mm)`                                                                                                     | 通过参数通道读取深度单位 | `unit_mm` 单位为毫米/计数                                                                       | `>0` 成功                          |
 
-复制前检查 `info.has`。图像存在但缓冲区过小时，返回 `-112`，`written` 给出所需字节数。取帧失败或超时时，帧句柄可能仍保留上一帧。复制到应用缓冲区的数据由应用管理。
+复制前检查 `info.has`。`ms_x95_frame_get_plane_info` 只读取尺寸、格式、PTS 等信息；`ms_x95_frame_copy_plane` 才把指定流的图像字节复制到调用方提供的数组或缓冲区。缓冲区由调用方分配、复用和释放，`capacity` 是容量，成功时 `written` 是实际复制的字节数。图像存在但缓冲区过小时，返回 `-112`，`written` 给出所需字节数。
+
+复制完成后，应用缓冲区里的数据与帧句柄独立；后续复用或销毁帧句柄不会改变这份副本。取帧失败或超时时，帧句柄可能仍保留上一帧，必须先检查取帧返回值，不能把旧数据当作新帧。
 
 ### 2.1 Imu 结构体
 
@@ -186,6 +185,27 @@ int main(void)
 | `ms_x95_camera_set_stereo_min_gain(ms_x95_camera_t* camera, float gain)` / `ms_x95_camera_get_stereo_min_gain(ms_x95_camera_t* camera, float* gain)`                             | 设置或读取增益下限   | `gain`，SDK 增益单位              | `>0` 成功 |
 | `ms_x95_camera_set_stereo_auto_exposure(ms_x95_camera_t* camera, int32_t onoff)`                                                                                                   | 切换自动曝光         | `onoff` 为 `0` 手动、`1` 自动 | `>0` 成功 |
 | `ms_x95_camera_set_stereo_auto_exposure_brightness(ms_x95_camera_t* camera, int32_t brightness)`                                                                                   | 设置自动曝光目标亮度 | `brightness` 目标亮度             | `>0` 成功 |
+
+### 5.1 高低曝光
+
+| 接口                                                                                                             | 功能             | 参数                                                                                                    | 返回值      |
+| ---------------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------- | ----------- |
+| `ms_x95_camera_set_dual_exposure_enabled(ms_x95_camera_t* camera, int32_t enable)`                             | 设置高低曝光开关 | `1` 开启，`0` 关闭                                                                                  | `>0` 成功 |
+| `ms_x95_camera_get_dual_exposure_enabled(ms_x95_camera_t* camera, int32_t* enable)`                            | 读取高低曝光开关 | `enable` 输出开关状态                                                                                 | `>0` 成功 |
+| `ms_x95_camera_set_dual_exposure_config(ms_x95_camera_t* camera, const ms_x95_dual_exposure_config_t* config)` | 设置高低曝光配置 | `high_reference` 取 `MS_X95_DUAL_EXPOSURE_REFERENCE_HIGH` 或 `MS_X95_DUAL_EXPOSURE_REFERENCE_LOW` | `>0` 成功 |
+| `ms_x95_camera_get_dual_exposure_config(ms_x95_camera_t* camera, ms_x95_dual_exposure_config_t* config)`       | 读取高低曝光配置 | 输出参考曝光档和两档曝光、增益                                                                          | `>0` 成功 |
+
+曝光时间以微秒（µs）为单位，范围为 1～65535。增益用 128～2048 的编码值表示，128 对应 1 倍增益。高档的曝光时间和曝光时间乘增益的乘积都须大于低档。两档曝光过于接近时，相机可能无法区分高低曝光帧。
+
+SDK 设置的高低曝光开关和档位在相机本次运行期间有效。相机重启时从配置文件重新读取。
+
+| 接口                                                                             | 说明               | 参数                                                                                                                            | 返回值     |
+| -------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `ms_x95_frame_get_exposure_phase(const ms_x95_frame_t* frame, int32_t* phase)` | 读取整帧的曝光档位 | `phase` 输出 `MS_X95_EXPOSURE_PHASE_UNKNOWN`（0）、`MS_X95_EXPOSURE_PHASE_LOW`（1）或 `MS_X95_EXPOSURE_PHASE_HIGH`（2） | `1` 成功 |
+
+首次开流时，如需高低曝光过滤，由调用方显式设置或回读触发模式和高低曝光开关。同一相机句柄重连数据通道时，SDK 在接收第一帧前重新回读相机状态。确认自动触发和高低曝光都已开启后，才过滤档位未知的帧。回读失败时，`ms_x95_camera_open_stream` 返回失败。相机明确返回不支持高低曝光时，按普通模式开流。取图成功后读取档位。
+
+纯 RGB 流没有双目亮暗标签。启用过滤时，`ms_x95_camera_get_frame` 的 `timeout_ms` 为正数就会等到超时并返回 `0`。
 
 ## 六、RGB 曝光与增益
 

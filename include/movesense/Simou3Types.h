@@ -61,6 +61,16 @@ enum class RoiStream : uint32_t { LeftRaw = 0, RightRaw = 1, RgbRaw = 2, LeftRec
 
 enum class IspChannel : uint32_t { Stereo = 0, Rgb = 1 };
 
+enum class DualExposurePhase : uint8_t { Unknown = 0, Low = 1, High = 2 };
+
+struct DualExposureConfig {
+    bool highReference = true;
+    uint32_t highExposureUs = 10000;
+    uint32_t highGain = 128;
+    uint32_t lowExposureUs = 2000;
+    uint32_t lowGain = 128;
+};
+
 constexpr unsigned kIspLevelMin = 0;
 constexpr unsigned kIspLevelMax = 100;
 constexpr float kIspWbGainMin = 0.0f;
@@ -103,6 +113,10 @@ public:
     uint32_t frameCnt() const
     {
         return m_frameCnt;
+    }
+    DualExposurePhase exposurePhase() const
+    {
+        return m_exposurePhase;
     }
     const Plane& leftRaw() const
     {
@@ -181,6 +195,7 @@ public:
 
     uint32_t m_frameCnt = 0;
     bool m_degraded = false;
+    DualExposurePhase m_exposurePhase = DualExposurePhase::Unknown;
     Plane m_planes[PLANE_N];
     std::vector<DetectionBox> m_detections;
     int m_detCoordW = 0, m_detCoordH = 0;

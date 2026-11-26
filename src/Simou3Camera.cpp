@@ -34,9 +34,17 @@ Simou3Camera::~Simou3Camera()
 
 int Simou3Camera::openCamera(int mode)
 {
+    if (mHasOpenedStream) {
+        mSimou3CameraTransfer.stopChunkRecv();
+    }
     mTransferMode = mode;
     if (!mSimou3CameraTransfer.connectToCamera(mTransferMode)) {
         simou3_log("openCamera: connect data stream failed");
+        return -1;
+    }
+    if (mHasOpenedStream && !RefreshDualExposureFilter()) {
+        simou3_log("openCamera: refresh exposure filtering state failed");
+        mSimou3CameraTransfer.stopChunkRecv();
         return -1;
     }
     if (!mSimou3CameraTransfer.startChunkRecv()) {
@@ -44,6 +52,7 @@ int Simou3Camera::openCamera(int mode)
         mSimou3CameraTransfer.stopChunkRecv();
         return -1;
     }
+    mHasOpenedStream = true;
     return 1;
 }
 
@@ -55,23 +64,35 @@ int Simou3Camera::closeCamera()
 
 int Simou3Camera::openCameraSettings()
 {
-    int ret = mSimou3CameraSettings.connectToCamera();
-    return ret;
+    const int result = mSimou3CameraSettings.connectToCamera();
+    mSettingsOpen = result > 0;
+    return result;
 }
 
 int Simou3Camera::closeCameraSettings()
 {
+    mSettingsOpen = false;
     return mSimou3CameraSettings.disconnectCamera();
 }
 
 int Simou3Camera::setTriggerMode(int mode)
 {
-    return mSimou3CameraSettings.setTriggerMode(mode);
+    const int result = mSimou3CameraSettings.setTriggerMode(mode);
+    if (result > 0) {
+        mAutoTrigger = mode == kTriggerModeAuto;
+        ApplyDualExposureFilter();
+    }
+    return result;
 }
 
 int Simou3Camera::getTriggerMode(int& mode)
 {
-    return mSimou3CameraSettings.getTriggerMode(mode);
+    const int result = mSimou3CameraSettings.getTriggerMode(mode);
+    if (result > 0) {
+        mAutoTrigger = mode == kTriggerModeAuto;
+        ApplyDualExposureFilter();
+    }
+    return result;
 }
 int Simou3Camera::getCameraType(int& type)
 {
@@ -80,6 +101,77 @@ int Simou3Camera::getCameraType(int& type)
 int Simou3Camera::getDepthUnitMm(double& unitMm)
 {
     return mSimou3CameraSettings.getDepthUnitMm(unitMm);
+}
+
+int Simou3Camera::setDualExposureEnabled(bool enable)
+{
+    const int result = mSimou3CameraSettings.setDualExposureEnabled(enable);
+    if (result > 0) {
+        mDualExposureEnabled = enable;
+        ApplyDualExposureFilter();
+    }
+    return result;
+}
+
+int Simou3Camera::getDualExposureEnabled(bool& enable)
+{
+    const int result = mSimou3CameraSettings.getDualExposureEnabled(enable);
+    if (result > 0) {
+        mDualExposureEnabled = enable;
+        ApplyDualExposureFilter();
+    }
+    return result;
+}
+
+void Simou3Camera::ApplyDualExposureFilter()
+{
+    mSimou3CameraTransfer.SetRequireKnownExposure(mDualExposureEnabled && mAutoTrigger);
+}
+
+bool Simou3Camera::RefreshDualExposureFilter()
+{
+    const bool temporarySettings = !mSettingsOpen;
+    if (temporarySettings && openCameraSettings() <= 0) {
+        return false;
+    }
+
+    const auto read = [this]() {
+        bool enabled = false;
+        const int result = mSimou3CameraSettings.getDualExposureEnabled(enabled);
+        if (result == SIMOU3_ERR_NOT_SUPPORTED) {
+            mDualExposureEnabled = false;
+            ApplyDualExposureFilter();
+            return true;
+        }
+        int mode = -1;
+        if (result <= 0 || mSimou3CameraSettings.getTriggerMode(mode) <= 0) {
+            return false;
+        }
+
+        mAutoTrigger = mode == kTriggerModeAuto;
+        mDualExposureEnabled = enabled;
+        ApplyDualExposureFilter();
+        return true;
+    };
+
+    bool refreshed = read();
+    if (!refreshed && !temporarySettings && openCameraSettings() > 0) {
+        refreshed = read();
+    }
+    if (temporarySettings) {
+        closeCameraSettings();
+    }
+    return refreshed;
+}
+
+int Simou3Camera::setDualExposureConfig(const DualExposureConfig& config)
+{
+    return mSimou3CameraSettings.setDualExposureConfig(config);
+}
+
+int Simou3Camera::getDualExposureConfig(DualExposureConfig& config)
+{
+    return mSimou3CameraSettings.getDualExposureConfig(config);
 }
 
 int Simou3Camera::setTriggerOut(int out)

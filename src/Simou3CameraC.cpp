@@ -483,6 +483,15 @@ extern "C" MS_X95_API int MS_X95_CALL ms_x95_camera_get_frame(ms_x95_camera_t* c
     });
 }
 
+extern "C" MS_X95_API int MS_X95_CALL ms_x95_frame_get_exposure_phase(const ms_x95_frame_t* frame, int32_t* phase)
+{
+    if (!validFrame(frame) || !phase) {
+        return fail(MS_X95_ERR_INVALID_ARGUMENT, "frame or output is null");
+    }
+    *phase = static_cast<int32_t>(frame->impl.exposurePhase());
+    return MS_X95_OK;
+}
+
 extern "C" MS_X95_API int MS_X95_CALL ms_x95_frame_get_plane_info(const ms_x95_frame_t* frame, uint32_t stream, ms_x95_plane_info_t* info)
 {
     if (!validFrame(frame) || !info) {
@@ -631,6 +640,69 @@ extern "C" MS_X95_API int MS_X95_CALL ms_x95_camera_get_trigger_mode(ms_x95_came
         return r;
     });
 }
+extern "C" MS_X95_API int MS_X95_CALL ms_x95_camera_set_dual_exposure_enabled(ms_x95_camera_t* camera, int32_t enable)
+{
+    if (!validCamera(camera) || (enable != 0 && enable != 1)) {
+        return fail(MS_X95_ERR_INVALID_ARGUMENT, "camera is null or enable is outside 0 and 1");
+    }
+    return guard([&]() {
+        return camera->impl.setDualExposureEnabled(enable == 1);
+    });
+}
+
+extern "C" MS_X95_API int MS_X95_CALL ms_x95_camera_get_dual_exposure_enabled(ms_x95_camera_t* camera, int32_t* enable)
+{
+    if (!validCamera(camera) || enable == nullptr) {
+        return fail(MS_X95_ERR_INVALID_ARGUMENT, "camera or enable is null");
+    }
+    return guard([&]() {
+        bool current = false;
+        const int result = camera->impl.getDualExposureEnabled(current);
+        if (result > 0) {
+            *enable = current ? 1 : 0;
+        }
+        return result;
+    });
+}
+
+extern "C" MS_X95_API int MS_X95_CALL ms_x95_camera_set_dual_exposure_config(ms_x95_camera_t* camera, const ms_x95_dual_exposure_config_t* config)
+{
+    if (!validCamera(camera) || config == nullptr) {
+        return fail(MS_X95_ERR_INVALID_ARGUMENT, "camera or config is null");
+    }
+    if (config->high_reference != MS_X95_DUAL_EXPOSURE_REFERENCE_LOW && config->high_reference != MS_X95_DUAL_EXPOSURE_REFERENCE_HIGH) {
+        return fail(MS_X95_ERR_CONFIG_INVALID, "invalid dual exposure reference");
+    }
+    return guard([&]() {
+        movesense::DualExposureConfig requested;
+        requested.highReference = (config->high_reference == MS_X95_DUAL_EXPOSURE_REFERENCE_HIGH);
+        requested.highExposureUs = config->high_exposure_us;
+        requested.highGain = config->high_gain;
+        requested.lowExposureUs = config->low_exposure_us;
+        requested.lowGain = config->low_gain;
+        return camera->impl.setDualExposureConfig(requested);
+    });
+}
+
+extern "C" MS_X95_API int MS_X95_CALL ms_x95_camera_get_dual_exposure_config(ms_x95_camera_t* camera, ms_x95_dual_exposure_config_t* config)
+{
+    if (!validCamera(camera) || config == nullptr) {
+        return fail(MS_X95_ERR_INVALID_ARGUMENT, "camera or config is null");
+    }
+    return guard([&]() {
+        movesense::DualExposureConfig current;
+        const int result = camera->impl.getDualExposureConfig(current);
+        if (result > 0) {
+            config->high_reference = current.highReference ? MS_X95_DUAL_EXPOSURE_REFERENCE_HIGH : MS_X95_DUAL_EXPOSURE_REFERENCE_LOW;
+            config->high_exposure_us = current.highExposureUs;
+            config->high_gain = current.highGain;
+            config->low_exposure_us = current.lowExposureUs;
+            config->low_gain = current.lowGain;
+        }
+        return result;
+    });
+}
+
 extern "C" MS_X95_API int MS_X95_CALL ms_x95_camera_set_trigger_out(ms_x95_camera_t* camera, int32_t output)
 {
     return validCamera(camera) ? guard([&]() {

@@ -40,6 +40,8 @@ public:
     int mPort;
 
 private:
+    friend class Simou3Camera;
+
     Simou3Net mSock;
     int mTransferMode;
 
@@ -48,6 +50,7 @@ private:
     void stashIMU(std::vector<uint8_t>&& buf);
     void publish(MovesenseFrame&& f);
     bool frameComplete(const MovesenseFrame& f) const;
+    void SetRequireKnownExposure(bool enabled);
 
     static const int IMU_CAP = 200;
     static const int IMU_SAMPLE_BYTES = 24;
@@ -63,6 +66,7 @@ private:
     std::mutex mSlotMtx;
     std::condition_variable mSlotCv;
     MovesenseFrame mSlot;
+    bool mRequireKnownExposure = false;
     std::atomic<bool> mSlotFull { false };
     std::atomic<uint64_t> mStEmpty { 0 }, mStAbn { 0 }, mStIncomplete { 0 }, mStOverwrite { 0 }, mStCorrupt { 0 };
     std::atomic<int64_t> mPtsOffset { 0 };
