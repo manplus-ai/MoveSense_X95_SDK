@@ -2,10 +2,14 @@
 // Copyright (c) 2026 Humanplus Intelligent Robotics Technology Co.,Ltd. All rights reserved.
 
 #include "movesense/Simou3CameraTransfer.h"
+#include "movesense/Simou3Camera.h"
 
 #include "Simou3Internal.h"
 #include "Simou3Log.h"
 #include "movesense/transfer_mode_def.h"
+
+#include <algorithm>
+#include <limits>
 
 namespace movesense {
 
@@ -18,7 +22,174 @@ struct Simou3ChunkHdr {
     bool isHead = false;
 };
 
+static int64_t SteadyTimeUs()
+{
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+static uint64_t simou3_now_us()
+{
+    static const int64_t kEpochOffsetUs = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count() - SteadyTimeUs();
+    return static_cast<uint64_t>(SteadyTimeUs() + kEpochOffsetUs);
+}
+
+class Simou3CameraTransfer::TimeSync
+{
+public:
+    explicit TimeSync(Simou3CameraTransfer& transfer) : m_transfer(transfer) {}
+
+    void OnStreamStopped();
+    int Align();
+    void SetFixedOffset(int64_t offsetUs);
+    int64_t GetOffset() const;
+
+    std::mutex m_mutex;
+
+private:
+    int64_t OffsetAt(int64_t nowUs) const;
+
+    Simou3CameraTransfer& m_transfer;
+    std::mutex m_probeMutex;
+    uint32_t m_sequence = 0;
+    bool m_hasAligned = false;
+    uint64_t m_generation = 0;
+    int64_t m_offsetUs = 0;
+    int64_t m_targetUs = 0;
+    int64_t m_offsetSetUs = 0;
+};
+
+void Simou3CameraTransfer::TimeSync::OnStreamStopped()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    ++m_generation;
+}
+
+int Simou3CameraTransfer::TimeSync::Align()
+{
+    constexpr int kPort = 5000;
+    constexpr int kProbes = 16;
+    constexpr int kMaxDelayUs = 5000;
+    constexpr uint32_t kMagic = 0x53335453;
+    struct SampleSet {
+        int accepted = 0;
+        int64_t delayUs = kMaxDelayUs + 1;
+        int64_t offsetUs = 0;
+    };
+
+    std::lock_guard<std::mutex> probeLock(m_probeMutex);
+    uint64_t generation = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        generation = m_generation;
+    }
+
+    SampleSet legacy, echoed;
+    for (int i = 0; i < kProbes; ++i) {
+        Simou3Net net;
+        if (!net.openUdp(50)) {
+            return -1;
+        }
+
+        unsigned char request[16] = {};
+        const uint32_t sequence = ++m_sequence;
+        const int64_t t1 = static_cast<int64_t>(simou3_now_us());
+        memcpy(request, &kMagic, sizeof(kMagic));
+        memcpy(request + 4, &sequence, sizeof(sequence));
+        memcpy(request + 8, &t1, sizeof(t1));
+        if (net.sendTo(m_transfer.mIP, kPort, request, sizeof(request)) != sizeof(request)) {
+            continue;
+        }
+
+        unsigned char reply[64];
+        std::string sender;
+        int port = 0;
+        const int size = net.recvFrom(reply, sizeof(reply), &sender, &port);
+        const int64_t t4 = static_cast<int64_t>(simou3_now_us());
+        if (sender != m_transfer.mIP || port != kPort || (size != 16 && size != 32)) {
+            continue;
+        }
+        const bool echo = size == 32;
+        if (echo && memcmp(reply, request, sizeof(request)) != 0) {
+            continue;
+        }
+
+        int64_t t2 = 0;
+        int64_t t3 = 0;
+        const unsigned char* timestamps = reply + (echo ? sizeof(request) : 0);
+        memcpy(&t2, timestamps, sizeof(t2));
+        memcpy(&t3, timestamps + sizeof(t2), sizeof(t3));
+        if (t2 <= 0 || t3 < t2 || t4 < t1 || t3 - t2 > t4 - t1) {
+            continue;
+        }
+        const int64_t delay = (t4 - t1) - (t3 - t2);
+        if (delay > kMaxDelayUs) {
+            continue;
+        }
+
+        SampleSet& samples = echo ? echoed : legacy;
+        ++samples.accepted;
+        if (delay < samples.delayUs) {
+            samples.delayUs = delay;
+            samples.offsetUs = (t1 - t2) / 2 + (t4 - t3) / 2;
+        }
+    }
+
+    const SampleSet& samples = echoed.accepted != 0 ? echoed : legacy;
+    if (samples.accepted < 3) {
+        simou3_log("alignTimeToHost: not enough valid replies");
+        return -1;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (generation != m_generation) {
+        return -1;
+    }
+    const int64_t now = SteadyTimeUs();
+    m_offsetUs = m_hasAligned ? OffsetAt(now) : samples.offsetUs;
+    m_hasAligned = true;
+    m_targetUs = samples.offsetUs;
+    m_offsetSetUs = now;
+    simou3_log("alignTimeToHost: offset=" + std::to_string(m_targetUs) +
+               "us, delay=" + std::to_string(samples.delayUs) + "us, valid probes=" +
+               std::to_string(samples.accepted));
+    return 1;
+}
+
+void Simou3CameraTransfer::TimeSync::SetFixedOffset(int64_t offsetUs)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_offsetUs = offsetUs;
+    m_targetUs = offsetUs;
+    m_offsetSetUs = SteadyTimeUs();
+}
+
+int64_t Simou3CameraTransfer::TimeSync::OffsetAt(int64_t nowUs) const
+{
+    const int64_t limitUs = (nowUs - m_offsetSetUs) / 5000;
+    return m_offsetUs + (std::max)(-limitUs, (std::min)(limitUs, m_targetUs - m_offsetUs));
+}
+
+int64_t Simou3CameraTransfer::TimeSync::GetOffset() const
+{
+    return m_hasAligned ? OffsetAt(SteadyTimeUs()) : m_offsetUs;
+}
+
+static uint64_t ShiftTime(uint64_t pts, int64_t offsetUs)
+{
+    if (pts == 0 || pts > static_cast<uint64_t>((std::numeric_limits<int64_t>::max)())) {
+        return pts;
+    }
+    if (offsetUs > 0 && pts > static_cast<uint64_t>((std::numeric_limits<int64_t>::max)() - offsetUs)) {
+        return 0;
+    }
+    const int64_t mapped = static_cast<int64_t>(pts) + offsetUs;
+    return mapped > 0 ? static_cast<uint64_t>(mapped) : 0;
+}
+
 Simou3CameraTransfer::Simou3CameraTransfer(std::string ip, int port)
+    : m_timeSync { std::unique_ptr<TimeSync>(new TimeSync(*this)) }
 {
     mIP = ip;
     mPort = port;
@@ -36,13 +207,6 @@ bool Simou3CameraTransfer::connectToCamera(int mode)
     }
     mTransferMode = mode;
     return true;
-}
-
-static uint64_t simou3_now_us()
-{
-    auto now = std::chrono::system_clock::now();
-    auto tp = std::chrono::time_point_cast<std::chrono::microseconds>(now);
-    return static_cast<uint64_t>(tp.time_since_epoch().count());
 }
 
 bool Simou3CameraTransfer::startChunkRecv()
@@ -71,6 +235,7 @@ void Simou3CameraTransfer::stopChunkRecv()
     mSock.shutdownSock();
     if (mRecvChunkThread.joinable())
         mRecvChunkThread.join();
+    m_timeSync.state->OnStreamStopped();
     mSock.closeSock();
     {
         std::lock_guard<std::mutex> lk(mBmtx);
@@ -179,7 +344,6 @@ void Simou3CameraTransfer::stashIMU(std::vector<uint8_t>&& buf)
     if (buf.empty()) {
         return;
     }
-    std::lock_guard<std::mutex> lk(mImuMtx);
     Imu s {};
     if (static_cast<int>(buf.size()) >= IMU_SAMPLE_BYTES) {
         const uint8_t* p = buf.data();
@@ -187,11 +351,11 @@ void Simou3CameraTransfer::stashIMU(std::vector<uint8_t>&& buf)
         std::memcpy(&s.timestampUs, p + 16, 8);
     }
 
-    int64_t off = mPtsOffset.load(std::memory_order_relaxed);
-    if (off != 0) {
-        s.timestampUs = static_cast<uint64_t>(static_cast<int64_t>(s.timestampUs) + off);
-    }
+    std::lock_guard<std::mutex> timeLock(m_timeSync.state->m_mutex);
+    const int64_t offset = m_timeSync.state->GetOffset();
+    s.timestampUs = ShiftTime(s.timestampUs, offset);
 
+    std::lock_guard<std::mutex> lk(mImuMtx);
     if (static_cast<int>(mImuQ.size()) >= IMU_CAP) {
         mImuQ.pop_front();
     }
@@ -200,7 +364,12 @@ void Simou3CameraTransfer::stashIMU(std::vector<uint8_t>&& buf)
 
 void Simou3CameraTransfer::setPtsOffset(int64_t offsetUs)
 {
-    mPtsOffset.store(offsetUs, std::memory_order_relaxed);
+    m_timeSync.state->SetFixedOffset(offsetUs);
+}
+
+int Simou3Camera::alignTimeToHost()
+{
+    return mSimou3CameraTransfer.m_timeSync.state->Align();
 }
 
 int Simou3CameraTransfer::getIMU(std::vector<Imu>& out, int num)
@@ -251,11 +420,12 @@ void Simou3CameraTransfer::publish(MovesenseFrame&& f)
         }
     }
 
-    int64_t off = mPtsOffset.load(std::memory_order_relaxed);
-    if (off != 0) {
-        for (int i = 0; i < MovesenseFrame::PLANE_N; i++) {
-            if (f.m_planes[i].has) {
-                f.m_planes[i].pts = static_cast<uint64_t>(static_cast<int64_t>(f.m_planes[i].pts) + off);
+    std::lock_guard<std::mutex> timeLock(m_timeSync.state->m_mutex);
+    const int64_t offset = m_timeSync.state->GetOffset();
+    if (offset != 0) {
+        for (auto& plane : f.m_planes) {
+            if (plane.has) {
+                plane.pts = ShiftTime(plane.pts, offset);
             }
         }
     }

@@ -9,6 +9,7 @@
 #include <condition_variable>
 #include <deque>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -69,7 +70,14 @@ private:
     bool mRequireKnownExposure = false;
     std::atomic<bool> mSlotFull { false };
     std::atomic<uint64_t> mStEmpty { 0 }, mStAbn { 0 }, mStIncomplete { 0 }, mStOverwrite { 0 }, mStCorrupt { 0 };
-    std::atomic<int64_t> mPtsOffset { 0 };
+    class TimeSync;
+    struct alignas(std::atomic<int64_t>) TimeSyncStorage {
+        std::unique_ptr<TimeSync> state;
+    };
+    static_assert(sizeof(TimeSyncStorage) == sizeof(std::atomic<int64_t>) &&
+                  alignof(TimeSyncStorage) == alignof(std::atomic<int64_t>),
+                  "Time sync storage must preserve the transfer object layout");
+    TimeSyncStorage m_timeSync;
     std::atomic<bool> mDropDegraded { true };
 };
 

@@ -6,15 +6,9 @@
 #include "Simou3Internal.h"
 #include "Simou3Log.h"
 
-#include <chrono>
 #include <cstring>
 
 namespace movesense {
-
-static int64_t nowWallUs()
-{
-    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-}
 
 bool Simou3Camera::isCameraOnline()
 {
@@ -742,63 +736,6 @@ void Simou3Camera::setDropDegradedFrame(bool onoff)
 int Simou3Camera::getIMU(std::vector<Imu>& out, int num)
 {
     return mSimou3CameraTransfer.getIMU(out, num);
-}
-
-int Simou3Camera::alignTimeToHost()
-{
-    Simou3Net net;
-    if (!net.openUdp(50)) {
-        simou3_log("alignTimeToHost: open udp failed");
-        return -1;
-    }
-
-    const int kProbes = 16;
-    const int kPort = 5000;
-    bool got = false;
-    int64_t bestDelay = 0, bestOffset = 0;
-
-    for (int i = 0; i < kProbes; i++) {
-        unsigned char req[16] = { 0 };
-        uint32_t magic = 0x53335453;
-        memcpy(req, &magic, 4);
-        memcpy(req + 4, &i, 4);
-
-        int64_t t1 = nowWallUs();
-        if (net.sendTo(mIp, kPort, req, sizeof(req)) <= 0) {
-            continue;
-        }
-        unsigned char rep[16];
-        int r = net.recvFrom(rep, sizeof(rep));
-        int64_t t4 = nowWallUs();
-        if (r < 16) {
-            continue;
-        }
-
-        uint64_t t2 = 0, t3 = 0;
-        memcpy(&t2, rep, 8);
-        memcpy(&t3, rep + 8, 8);
-
-        int64_t delay = (t4 - t1) - static_cast<int64_t>(t3 - t2);
-        int64_t theta = (static_cast<int64_t>(t2 - t1) + static_cast<int64_t>(t3 - t4)) / 2;
-        int64_t offset = -theta;
-
-        if (!got || delay < bestDelay) {
-            got = true;
-            bestDelay = delay;
-            bestOffset = offset;
-        }
-    }
-
-    net.closeSock();
-
-    if (!got) {
-        simou3_log("alignTimeToHost: no valid reply from camera");
-        return -1;
-    }
-
-    mSimou3CameraTransfer.setPtsOffset(bestOffset);
-    simou3_log("alignTimeToHost: offset=" + std::to_string(bestOffset) + "us (min delay=" + std::to_string(bestDelay) + "us)");
-    return 1;
 }
 
 } // namespace movesense
