@@ -53,11 +53,21 @@
 #define MS_X95_TRIGGER_MODE_EXTERNAL 2
 #define MS_X95_CHANNEL_STEREO 0
 #define MS_X95_CHANNEL_RGB 1
+#define MS_X95_DUAL_EXPOSURE_REFERENCE_LOW 0
+#define MS_X95_DUAL_EXPOSURE_REFERENCE_HIGH 1
 
 typedef struct ms_x95_camera ms_x95_camera_t;
 typedef struct ms_x95_frame ms_x95_frame_t;
 typedef struct ms_x95_scan_list ms_x95_scan_list_t;
 typedef struct ms_x95_interface_list ms_x95_interface_list_t;
+
+typedef struct ms_x95_dual_exposure_config {
+    int32_t high_reference;
+    uint32_t high_exposure_us;
+    uint32_t high_gain;
+    uint32_t low_exposure_us;
+    uint32_t low_gain;
+} ms_x95_dual_exposure_config_t;
 
 typedef enum ms_x95_stream {
     MS_X95_STREAM_LEFT_RAW = 0,
@@ -71,6 +81,12 @@ typedef enum ms_x95_stream {
 } ms_x95_stream_t;
 
 typedef enum ms_x95_format { MS_X95_FORMAT_Y8 = 0, MS_X95_FORMAT_NV21 = 1, MS_X95_FORMAT_DEPTH16 = 2 } ms_x95_format_t;
+
+typedef enum ms_x95_exposure_phase {
+    MS_X95_EXPOSURE_PHASE_UNKNOWN = 0,
+    MS_X95_EXPOSURE_PHASE_LOW = 1,
+    MS_X95_EXPOSURE_PHASE_HIGH = 2
+} ms_x95_exposure_phase_t;
 
 typedef struct ms_x95_plane_info {
     uint8_t has;
@@ -210,6 +226,7 @@ MS_X95_API int MS_X95_CALL ms_x95_camera_close_settings(ms_x95_camera_t* camera)
 MS_X95_API int MS_X95_CALL ms_x95_frame_create(ms_x95_frame_t** out);
 MS_X95_API void MS_X95_CALL ms_x95_frame_destroy(ms_x95_frame_t* frame);
 MS_X95_API int MS_X95_CALL ms_x95_camera_get_frame(ms_x95_camera_t* camera, ms_x95_frame_t* frame, int32_t timeout_ms);
+MS_X95_API int MS_X95_CALL ms_x95_frame_get_exposure_phase(const ms_x95_frame_t* frame, int32_t* phase);
 MS_X95_API int MS_X95_CALL ms_x95_frame_get_plane_info(const ms_x95_frame_t* frame, uint32_t stream, ms_x95_plane_info_t* info);
 MS_X95_API int MS_X95_CALL ms_x95_frame_copy_plane(const ms_x95_frame_t* frame, uint32_t stream, void* buffer, uint32_t capacity, uint32_t* written);
 MS_X95_API int MS_X95_CALL ms_x95_frame_get_detections(
@@ -221,6 +238,10 @@ MS_X95_API int MS_X95_CALL ms_x95_camera_align_time_to_host(ms_x95_camera_t* cam
 
 MS_X95_API int MS_X95_CALL ms_x95_camera_set_trigger_mode(ms_x95_camera_t* camera, int32_t mode);
 MS_X95_API int MS_X95_CALL ms_x95_camera_get_trigger_mode(ms_x95_camera_t* camera, int32_t* mode);
+MS_X95_API int MS_X95_CALL ms_x95_camera_set_dual_exposure_enabled(ms_x95_camera_t* camera, int32_t enable);
+MS_X95_API int MS_X95_CALL ms_x95_camera_get_dual_exposure_enabled(ms_x95_camera_t* camera, int32_t* enable);
+MS_X95_API int MS_X95_CALL ms_x95_camera_set_dual_exposure_config(ms_x95_camera_t* camera, const ms_x95_dual_exposure_config_t* config);
+MS_X95_API int MS_X95_CALL ms_x95_camera_get_dual_exposure_config(ms_x95_camera_t* camera, ms_x95_dual_exposure_config_t* config);
 MS_X95_API int MS_X95_CALL ms_x95_camera_set_trigger_out(ms_x95_camera_t* camera, int32_t output);
 MS_X95_API int MS_X95_CALL ms_x95_camera_get_trigger_out(ms_x95_camera_t* camera, int32_t* output);
 MS_X95_API int MS_X95_CALL ms_x95_camera_trigger_frame(ms_x95_camera_t* camera);

@@ -11,6 +11,10 @@
 
 #define CMD_TYPE_GET_CAMERA_TYPE 0x0019
 #define CMD_TYPE_GET_DEPTH_UNIT 0x001C
+#define CMD_TYPE_SET_DUAL_EXPOSURE_ENABLED 0x2073
+#define CMD_TYPE_GET_DUAL_EXPOSURE_ENABLED 0x2074
+#define CMD_TYPE_SET_DUAL_EXPOSURE_CONFIG 0x2075
+#define CMD_TYPE_GET_DUAL_EXPOSURE_CONFIG 0x2076
 
 #define CMD_TYPE_SET_IP 0x0009
 #define CMD_TYPE_GET_IP 0x000A
@@ -269,6 +273,82 @@ int Simou3CameraSettings::getDepthUnitMm(double& unitMm)
     }
 
     unitMm = value;
+    return result;
+}
+
+int Simou3CameraSettings::ExchangeDualExposure(unsigned short command, int32_t (&data)[6])
+{
+    const unsigned short length = sizeof(data);
+    int result = sendCmd(command, length, data);
+    if (result != length + 7) {
+        return result <= 0 ? result : -1;
+    }
+    result = mSock.recvBlock(data, length);
+    if (result != length) {
+        return result <= 0 ? result : -1;
+    }
+    if (data[0] == 0) {
+        return SIMOU3_ERR_NOT_SUPPORTED;
+    }
+    return data[0] == 1 ? result : (data[0] < 0 ? data[0] : -1);
+}
+
+int Simou3CameraSettings::setDualExposureEnabled(bool enable)
+{
+    int32_t data[6] = { 0, enable ? 1 : 0 };
+    return ExchangeDualExposure(CMD_TYPE_SET_DUAL_EXPOSURE_ENABLED, data);
+}
+
+int Simou3CameraSettings::getDualExposureEnabled(bool& enable)
+{
+    int32_t data[6] = {};
+    const int result = ExchangeDualExposure(CMD_TYPE_GET_DUAL_EXPOSURE_ENABLED, data);
+    if (result > 0) {
+        if (data[1] != 0 && data[1] != 1) {
+            return SIMOU3_ERR_INFO_UNAVAILABLE;
+        }
+        enable = (data[1] == 1);
+    }
+    return result;
+}
+
+static bool ValidDualExposureConfig(const DualExposureConfig& config)
+{
+    return config.lowExposureUs >= 1 && config.highExposureUs <= 65535 && config.highExposureUs > config.lowExposureUs &&
+           config.lowGain >= 128 && config.lowGain <= 2048 && config.highGain >= 128 && config.highGain <= 2048 &&
+           config.highExposureUs * config.highGain > config.lowExposureUs * config.lowGain;
+}
+
+int Simou3CameraSettings::setDualExposureConfig(const DualExposureConfig& config)
+{
+    if (!ValidDualExposureConfig(config)) {
+        return SIMOU3_ERR_CONFIG_INVALID;
+    }
+
+    int32_t data[6] = { 0, config.highReference ? 1 : 0, static_cast<int32_t>(config.highExposureUs), static_cast<int32_t>(config.highGain),
+        static_cast<int32_t>(config.lowExposureUs), static_cast<int32_t>(config.lowGain) };
+    return ExchangeDualExposure(CMD_TYPE_SET_DUAL_EXPOSURE_CONFIG, data);
+}
+
+int Simou3CameraSettings::getDualExposureConfig(DualExposureConfig& config)
+{
+    int32_t data[6] = {};
+    const int result = ExchangeDualExposure(CMD_TYPE_GET_DUAL_EXPOSURE_CONFIG, data);
+    if (result <= 0) {
+        return result;
+    }
+
+    DualExposureConfig current;
+    current.highReference = (data[1] == 1);
+    current.highExposureUs = static_cast<uint32_t>(data[2]);
+    current.highGain = static_cast<uint32_t>(data[3]);
+    current.lowExposureUs = static_cast<uint32_t>(data[4]);
+    current.lowGain = static_cast<uint32_t>(data[5]);
+    if ((data[1] != 0 && data[1] != 1) || !ValidDualExposureConfig(current)) {
+        return SIMOU3_ERR_INFO_UNAVAILABLE;
+    }
+
+    config = current;
     return result;
 }
 

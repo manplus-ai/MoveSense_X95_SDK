@@ -1,6 +1,6 @@
 # MoveSense X95 SDK
 
-> **状态:0.6.0 — 早期版本。** API **尚不稳定**,1.0 之前预计会有破坏性变更。
+> **状态:0.6.1 — 早期版本。** API **尚不稳定**,1.0 之前预计会有破坏性变更。
 
 用于 MoveSense X95 系列相机的跨平台（Linux / Windows）C++ SDK，提供图像、深度和原始 IMU 数据读取，以及相机参数、标定参数、设备信息和网络配置接口。RGB 接口适用于具备 RGB 镜头的机型。
 
@@ -56,7 +56,7 @@ sudo make install          # 默认装到 /usr/local
 
 ```
 include/movesense/*.h                         公开头文件
-lib/libMoveSense_X95_SDK.so(.0.6)(.0.6.0)     动态库
+lib/libMoveSense_X95_SDK.so(.0.6)(.0.6.1)     动态库
 lib/cmake/MoveSense_X95_SDK/*.cmake           package config(供 find_package)
 ```
 

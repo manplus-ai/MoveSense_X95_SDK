@@ -27,6 +27,10 @@ public:
     int triggerFrame();
     int getCameraType(int& type);
     int getDepthUnitMm(double& unitMm);
+    int setDualExposureEnabled(bool enable);
+    int getDualExposureEnabled(bool& enable);
+    int setDualExposureConfig(const DualExposureConfig& config);
+    int getDualExposureConfig(DualExposureConfig& config);
 
     int setStereoExposure(unsigned expus);
     int getStereoExposure(unsigned& expus);
@@ -120,6 +124,7 @@ private:
         unsigned short setCommand, unsigned short getCommand, unsigned char* data, int length, int prefixBytes, const calib::ImuCalibration* imu);
     int GetCalibrationData(unsigned short command, unsigned char* data, int length, int prefixBytes, calib::ImuCalibration* imu);
     int ExchangeParameter(unsigned short command, unsigned char* data, unsigned short length);
+    int ExchangeDualExposure(unsigned short command, int32_t (&data)[6]);
     int ReadTextParameter(unsigned short command, std::string& value);
     Simou3Net mSock;
     int sendCmd(unsigned short cmdType, unsigned short len, const void* data);

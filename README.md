@@ -1,6 +1,6 @@
 # MoveSense X95 SDK
 
-> **Status: 0.6.0 — early release.** The API is **not** stable yet and
+> **Status: 0.6.1 — early release.** The API is **not** stable yet and
 > breaking changes are expected before 1.0.
 
 Cross-platform (Linux / Windows) C++ SDK for MoveSense X95 cameras. It provides image, depth, and raw IMU data access, along with camera settings, calibration parameters, device information, and network configuration interfaces. RGB interfaces apply to models equipped with an RGB camera.
@@ -57,7 +57,7 @@ Installed layout (relative to `CMAKE_INSTALL_PREFIX`, default `/usr/local`):
 
 ```
 include/movesense/*.h                         public headers
-lib/libMoveSense_X95_SDK.so(.0.6)(.0.6.0)     shared library
+lib/libMoveSense_X95_SDK.so(.0.6)(.0.6.1)     shared library
 lib/cmake/MoveSense_X95_SDK/*.cmake           package config (for find_package)
 ```
 

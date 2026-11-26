@@ -45,10 +45,6 @@ TCP requests use the existing SDK timeouts. On the data channel, `ms_x95_camera_
 
 ### Call order
 
-- Create a camera handle before opening either channel.
-- Open the data channel before reading frames or IMU samples. Open the settings channel before reading or writing camera parameters.
-- Reuse the frame handle to receive successive frames. Close each open channel and release acquired handles with their matching destroy function. Wait for calls using a handle to finish before destroying it.
-- The following C example opens the stream once and reads 10 depth frames in a loop from a camera in auto trigger mode. Each read waits up to two seconds. See the README for build commands.
 
 ```c
 #include <movesense/Simou3CameraC.h>
@@ -132,7 +128,9 @@ The data channel (TCP 5001) and the settings channel (TCP 5002) can be used inde
 | `ms_x95_camera_align_time_to_host(ms_x95_camera_t* camera)` | Align the camera clock to the host | `camera` camera handle | `>0` on success |
 | `ms_x95_camera_get_depth_unit_mm(ms_x95_camera_t* camera, double* unit_mm)` | Read millimeters per depth count through the settings channel | `unit_mm` output in mm/count | `>0` on success |
 
-Check `info.has` before copying. On `-112`, `written` holds the required byte count for a present plane. A failed or timed-out frame read may leave the previous data in the frame handle. Bytes copied to an application buffer are owned by the application.
+Check `info.has` before copying. `ms_x95_frame_get_plane_info` only reads metadata such as dimensions, format, and PTS. `ms_x95_frame_copy_plane` copies the selected stream's image bytes into an application-provided array or buffer. The application allocates, reuses, and releases this buffer. `capacity` is its byte capacity, and `written` is the number of bytes copied on success. On `-112`, `written` holds the required byte count for a present plane.
+
+After copying, the application buffer is independent of the frame handle. Refilling or destroying that handle does not change the copied bytes. A failed or timed-out frame read may leave the previous data in the handle. Check the frame-read result before using its data as a new frame.
 
 ### 2.1 Imu Structure
 
@@ -186,6 +184,27 @@ String outputs use a caller-owned `buffer` and `capacity` in bytes. Pass `requir
 | `ms_x95_camera_set_stereo_min_gain(ms_x95_camera_t* camera, float gain)` / `ms_x95_camera_get_stereo_min_gain(ms_x95_camera_t* camera, float* gain)` | Set or read the lower gain limit | `gain` in SDK gain units | `>0` on success |
 | `ms_x95_camera_set_stereo_auto_exposure(ms_x95_camera_t* camera, int32_t onoff)` | Switch auto exposure | `onoff` `0` manual, `1` auto | `>0` on success |
 | `ms_x95_camera_set_stereo_auto_exposure_brightness(ms_x95_camera_t* camera, int32_t brightness)` | Set the auto exposure brightness target | `brightness` target value | `>0` on success |
+
+### 5.1 Dual exposure
+
+| Interface | Function | Parameters | Returns |
+| --- | --- | --- | --- |
+| `ms_x95_camera_set_dual_exposure_enabled(ms_x95_camera_t* camera, int32_t enable)` | Set the dual-exposure switch | `1` enables it, `0` disables it | `>0` success |
+| `ms_x95_camera_get_dual_exposure_enabled(ms_x95_camera_t* camera, int32_t* enable)` | Read the dual-exposure switch | Writes the configured switch state to `enable` | `>0` success |
+| `ms_x95_camera_set_dual_exposure_config(ms_x95_camera_t* camera, const ms_x95_dual_exposure_config_t* config)` | Set dual-exposure presets | Set `high_reference` to `MS_X95_DUAL_EXPOSURE_REFERENCE_HIGH` or `MS_X95_DUAL_EXPOSURE_REFERENCE_LOW` | `>0` success |
+| `ms_x95_camera_get_dual_exposure_config(ms_x95_camera_t* camera, ms_x95_dual_exposure_config_t* config)` | Read dual-exposure presets | Outputs the reference preset, exposure times, and gains | `>0` success |
+
+Exposure times range from 1 to 65535 µs. Gain codes range from 128 to 2048, with 128 representing 1× gain. The high preset must have a longer exposure time and a greater product of exposure time and gain than the low preset. The camera may be unable to distinguish the two phases when the exposure times are too close.
+
+The switch and presets set through the SDK apply for the current camera run. On restart, the camera reloads them from its configuration file.
+
+| API | Description | Parameters | Return value |
+| --- | ----------- | ---------- | ------------ |
+| `ms_x95_frame_get_exposure_phase(const ms_x95_frame_t* frame, int32_t* phase)` | Read the exposure phase of the completed frame | `phase` receives `MS_X95_EXPOSURE_PHASE_UNKNOWN` (0), `MS_X95_EXPOSURE_PHASE_LOW` (1), or `MS_X95_EXPOSURE_PHASE_HIGH` (2) | `1` on success |
+
+To enable dual-exposure filtering on the first stream, explicitly set or read the trigger mode and dual-exposure switch. When the same camera handle reconnects, the SDK reads the current camera state before receiving the first frame. It filters unknown-phase frames once it confirms both automatic triggering and enabled dual exposure. If the read fails, `ms_x95_camera_open_stream` returns an error. If the camera reports that dual exposure is unsupported, the SDK opens a normal stream. Read the phase after a successful frame fetch.
+
+RGB-only streams carry no stereo exposure phase. With filtering enabled, `ms_x95_camera_get_frame` with a positive `timeout_ms` waits until the timeout and returns `0`.
 
 ## 6. RGB exposure and gain
 

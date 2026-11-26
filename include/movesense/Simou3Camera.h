@@ -40,6 +40,10 @@ public:
 
     int getCameraType(int& type);
     int getDepthUnitMm(double& unitMm);
+    int setDualExposureEnabled(bool enable);
+    int getDualExposureEnabled(bool& enable);
+    int setDualExposureConfig(const DualExposureConfig& config);
+    int getDualExposureConfig(DualExposureConfig& config);
     int setStereoExposure(unsigned expus);
     int getStereoExposure(unsigned& expus);
 
@@ -158,12 +162,19 @@ public:
     static std::vector<CameraInfo> scanCamerasAllInterfaces(int port = 5004, int timeoutMS = 2000);
 
 private:
+    void ApplyDualExposureFilter();
+    bool RefreshDualExposureFilter();
+
     Simou3CameraTransfer mSimou3CameraTransfer;
     Simou3CameraSettings mSimou3CameraSettings;
     Simou3CameraScan mSimou3CameraScan;
 
     std::string mIp;
     int mTransferMode;
+    bool mAutoTrigger = false;
+    bool mDualExposureEnabled = false;
+    bool mHasOpenedStream = false;
+    bool mSettingsOpen = false;
 };
 
 void simou3_get_version(int* major, int* minor, int* patch);

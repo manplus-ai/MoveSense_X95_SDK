@@ -12,6 +12,7 @@ namespace movesense {
 struct Simou3ChunkHdr {
     uint32_t fc = 0, chunkStart = 0, chunkEnd = 0, totalLen = 0;
     uint8_t label = 0, flags = 0, status = 0, fmt = 0;
+    DualExposurePhase exposurePhase = DualExposurePhase::Unknown;
     uint16_t w = 0, h = 0;
     uint64_t tsend = 0, pts = 0, recvNow = 0;
     bool isHead = false;
@@ -260,11 +261,24 @@ void Simou3CameraTransfer::publish(MovesenseFrame&& f)
     }
 
     std::lock_guard<std::mutex> lk(mSlotMtx);
+    if (mRequireKnownExposure && f.exposurePhase() == DualExposurePhase::Unknown) {
+        return;
+    }
     if (mSlotFull.load(std::memory_order_relaxed))
         mStOverwrite.fetch_add(1);
     mSlot = std::move(f);
     mSlotFull.store(true, std::memory_order_release);
     mSlotCv.notify_one();
+}
+
+void Simou3CameraTransfer::SetRequireKnownExposure(bool enabled)
+{
+    std::lock_guard<std::mutex> lock(mSlotMtx);
+    if (mRequireKnownExposure == enabled) {
+        return;
+    }
+    mRequireKnownExposure = enabled;
+    mSlotFull.store(false, std::memory_order_release);
 }
 
 void Simou3CameraTransfer::setDropDegradedFrame(bool onoff)
@@ -289,6 +303,9 @@ void Simou3CameraTransfer::stashChunk(const Simou3ChunkHdr& c, std::vector<uint8
     MovesenseFrame::Plane& p = f.m_planes[idx];
 
     if (c.isHead) {
+        if (c.status == 0 && (c.exposurePhase == DualExposurePhase::Low || c.exposurePhase == DualExposurePhase::High)) {
+            f.m_exposurePhase = c.exposurePhase;
+        }
         p.has = true;
         p.recvStart = c.recvNow;
         p.pts = c.pts;
@@ -394,6 +411,7 @@ void Simou3CameraTransfer::recvLoop()
             memcpy(&c.pts, ext + 8, 8);
             c.status = ext[16];
             c.fmt = ext[17];
+            c.exposurePhase = static_cast<DualExposurePhase>(ext[18]);
             memcpy(&c.w, ext + 19, 2);
             memcpy(&c.h, ext + 21, 2);
             memcpy(&c.totalLen, ext + 23, 4);
@@ -413,7 +431,11 @@ void Simou3CameraTransfer::recvLoop()
         c.recvNow = simou3_now_us();
         stashChunk(c, std::move(buf));
     }
-    mRunning.store(false);
+    {
+        std::lock_guard<std::mutex> lock(mSlotMtx);
+        mRunning.store(false);
+    }
+    mSlotCv.notify_all();
 }
 
 } // namespace movesense

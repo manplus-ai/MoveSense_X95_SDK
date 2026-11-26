@@ -31,10 +31,6 @@ TCP connect, send and receive use a 5-second timeout. A request/response on the 
 
 ### Call order
 
-- Call `openCamera` before reading frames with `getFrame` or IMU data with `getIMU`. Call `closeCamera` when finished.
-- Parameter interfaces use the control channel and require `openCameraSettings` first
-- The two channels are independent and may be used separately
-- Calibration reads require the camera to be open and data to be ready
 - The following example opens the stream once and reads 10 consecutive depth frames from a camera in auto trigger mode. Each read waits up to two seconds. Replace the example IP with your camera address and see the [README](../README.md#use-it-in-your-project) for build instructions.
 
 ```cpp
@@ -142,7 +138,6 @@ These converted measurements have not yet been corrected using IMU intrinsics. T
 | `getTriggerOut(int& out)` | Read the effective trigger pulse output state | `out` output, `0` or `1`; external trigger mode always reports `0` | `>0` success |
 | `triggerFrame()` | Soft-trigger one frame | none | `>0` success / `-104` rejected by the camera |
 
-> The trigger mode lasts only for the current camera run and falls back to auto trigger after a camera restart. It is **not** reset on reconnect, so set it explicitly before `openCamera` on every connection.
 > Switching the trigger mode discards frames the camera has not sent yet.
 >
 > In soft trigger mode the camera produces no frames on its own: after each successful `triggerFrame()`, fetch the resulting frame with `getFrame` (`frameCnt()` advances by 1).
@@ -190,6 +185,25 @@ SN accepts 1 to 63 ASCII letters, digits, underscores or hyphens without truncat
 | `getStereoMaxGain(float& gain)` | Read the gain upper bound | `gain` output | `>0` success |
 | `setStereoMinGain(float gain)` | Set the gain lower bound | `gain` clamped to `[128, 2048]` | `>0` success |
 | `getStereoMinGain(float& gain)` | Read the gain lower bound | `gain` output | `>0` success |
+
+### 5.1 Dual exposure
+
+| Interface | Function | Parameters | Returns |
+| --- | --- | --- | --- |
+| `setDualExposureEnabled(bool enable)` | Set the dual-exposure switch | `true` enables it, `false` disables it | `>0` success |
+| `getDualExposureEnabled(bool& enable)` | Read the dual-exposure switch | Writes the configured switch state to `enable` | `>0` success |
+| `setDualExposureConfig(const DualExposureConfig& config)` | Set dual-exposure presets | `highReference` selects the high preset as the reference when `true` and the low preset when `false` | `>0` success |
+| `getDualExposureConfig(DualExposureConfig& config)` | Read dual-exposure presets | Outputs the reference preset, exposure times, and gains | `>0` success |
+
+Exposure times range from 1 to 65535 µs. Gain codes range from 128 to 2048, with 128 representing 1× gain. The high preset must have a longer exposure time and a greater product of exposure time and gain than the low preset. The camera may be unable to distinguish the two phases when the exposure times are too close.
+
+The switch and presets set through the SDK apply for the current camera run. On restart, the camera reloads them from its configuration file.
+
+`MovesenseFrame::exposurePhase()` returns the exposure phase of the completed frame. The values are `DualExposurePhase::Unknown`, `Low` and `High`. Read the phase after a successful frame fetch.
+
+To enable dual-exposure filtering on the first stream, explicitly set or read the trigger mode and dual-exposure switch. When the same camera object reconnects, the SDK reads the current camera state before receiving the first frame. It filters unknown-phase frames once it confirms both automatic triggering and enabled dual exposure. If the read fails, `openCamera` returns an error. If the camera reports that dual exposure is unsupported, the SDK opens a normal stream.
+
+RGB-only streams carry no stereo exposure phase. With filtering enabled, `getFrame` with a positive timeout waits until the timeout and returns `false`.
 
 ## 6. RGB exposure and gain
 
